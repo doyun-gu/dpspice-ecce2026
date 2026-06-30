@@ -9,6 +9,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 Cosmetic release. No behavior, API, or CLI-contract change; the 17 CLI-contract
 tests and the golden baseline are unchanged from 1.0.0.
 
+### Added
+
+- **`dpspice --version`** (`-V`): prints the bare version string to stdout and
+  exits, safe to capture in scripts.
+
 ### Changed
 
 - **Interactive banner.** The `dpspice` startup banner is now an ANSI block-letter

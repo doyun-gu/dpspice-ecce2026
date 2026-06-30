@@ -38,6 +38,27 @@ app = typer.Typer(
 out = Console()
 err = Console(stderr=True)
 
+
+def _version_callback(value: bool) -> None:
+    if value:
+        # Bare version on stdout, nothing else — safe to capture in scripts.
+        print(__version__)
+        raise typer.Exit()
+
+
+@app.callback()
+def _root(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        "-V",
+        help="Show the DPSpice version and exit.",
+        callback=_version_callback,
+        is_eager=True,
+    ),
+) -> None:
+    """DPSpice — topology-independent dynamic-phasor circuit simulation (ECCE 2026)."""
+
 SUBTITLE = "Dynamic Phasor Circuit Simulation"
 # Muted teal-green wordmark — professional, not a bright "hacker" cyan.
 BANNER_STYLE = "#3fa796"
