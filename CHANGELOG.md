@@ -4,6 +4,23 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-06-30
+
+Cosmetic release. No behavior, API, or CLI-contract change; the 17 CLI-contract
+tests and the golden baseline are unchanged from 1.0.0.
+
+### Changed
+
+- **Interactive banner.** The `dpspice` startup banner is now an ANSI block-letter
+  wordmark in a muted teal-green, with subtitle, version, and venue on a dim line
+  below. It renders only on an interactive TTY and is still fully suppressed by
+  `--quiet`, `--no-banner`, `--json`, or a piped/redirected stdout.
+- **`dpspice validate` help text** clarifies that the positional argument is the
+  netlist to simulate and `--ref` takes an LTspice/ngspice `.raw` *output* to
+  validate against (not a netlist).
+
+[1.0.1]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.1
+
 ## [1.0.0] - 2026-06-30
 
 First public release: the reference implementation accompanying the ECCE 2026

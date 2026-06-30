@@ -7,7 +7,7 @@ authors:
     given-names: Doyun
 repository-code: "https://github.com/doyun-gu/dpspice-ecce2026"
 license: Apache-2.0
-version: 1.0.0
+version: 1.0.1
 preferred-citation:
   type: conference-paper
   title: "Topology-Independent Dynamic Phasor Simulation"

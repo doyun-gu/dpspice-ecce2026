@@ -38,7 +38,9 @@ app = typer.Typer(
 out = Console()
 err = Console(stderr=True)
 
-SUBTITLE = "Topology-Independent Dynamic Phasor Simulation"
+SUBTITLE = "Dynamic Phasor Circuit Simulation"
+# Muted teal-green wordmark — professional, not a bright "hacker" cyan.
+BANNER_STYLE = "#3fa796"
 
 
 def _interactive(quiet: bool) -> bool:
@@ -51,12 +53,11 @@ def banner(quiet: bool, no_banner: bool) -> None:
         return
     try:
         from pyfiglet import figlet_format
-        art = figlet_format("DPSpice", font="slant").rstrip("\n")
-        err.print(Text(art, style="bold cyan"))
+        art = figlet_format("DPSpice", font="ansi_shadow").rstrip("\n")
+        err.print(Text(art, style=BANNER_STYLE))
     except Exception:
-        err.print(Text("DPSpice", style="bold cyan"))
-    err.print(Text(f"  {SUBTITLE}", style="dim"))
-    err.print(Text(f"  ECCE 2026 · v{__version__}\n", style="dim"))
+        err.print(Text("DPSpice", style=f"bold {BANNER_STYLE}"))
+    err.print(Text(f"  {SUBTITLE}  ·  v{__version__}  ·  ECCE 2026\n", style="dim"))
 
 
 def _fail(exc: Exception) -> None:
@@ -262,8 +263,8 @@ def _render_run(result, quiet: bool) -> None:
 
 @app.command()
 def validate(
-    netlist: str = typer.Argument(..., help="Path to a .sp/.cir/.net file (or netlist text)."),
-    ref: Optional[str] = typer.Option(None, "--ref", help="Reference .raw file. Omit to auto-run ngspice."),
+    netlist: str = typer.Argument(..., help="The netlist to simulate: a .sp/.cir/.net file (or netlist text). Not a .raw."),
+    ref: Optional[str] = typer.Option(None, "--ref", help="LTspice/ngspice .raw OUTPUT to validate against (a simulation result, not a netlist). Omit to auto-run ngspice."),
     keep_raw: bool = typer.Option(False, "--keep-raw", help="Keep the auto-generated ngspice .raw."),
     mode: str = typer.Option("auto", help="auto|td|idp|hb."),
     harmonics: Optional[int] = typer.Option(None, "--harmonics", "-K", help="HB harmonic count K."),
