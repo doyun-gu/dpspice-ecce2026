@@ -1,17 +1,76 @@
 # DPSpice
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21085058.svg)](https://doi.org/10.5281/zenodo.21085058)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![CI](https://github.com/doyun-gu/dpspice-ecce2026/actions/workflows/ci.yml/badge.svg)](https://github.com/doyun-gu/dpspice-ecce2026/actions/workflows/ci.yml)
+
 **Topology-independent dynamic-phasor circuit simulation.** Drop in a SPICE
 netlist, and DPSpice figures out the rest: it parses the circuit, stamps the
 modified-nodal-analysis (MNA) system, picks the right solver, and runs it.
 Netlist in, result out.
 
-This is the reference implementation accompanying the ECCE 2026 paper.
+This is the reference implementation accompanying the ECCE 2026 paper by
+Doyun Gu and Cheng Zhang (University of Manchester). The archived release is on
+Zenodo: [`10.5281/zenodo.21085058`](https://doi.org/10.5281/zenodo.21085058).
+
+![DPSpice overview: the IDP solver reproduces the classical time-domain waveform, and its speedup grows with the simulated horizon](docs/img/overview.png)
+
+*Series-RLC resonance: the dynamic-phasor (IDP) solve sits on top of the
+classical time-domain waveform (NRMSE 9e-5), while the speedup over a full
+time-domain solve grows with the simulated horizon. Both panels are real engine
+output; absolute speedups are machine-dependent, the trend is not.*
+
+## Quickstart
+
+Install the CLI globally with [pipx](https://pipx.pypa.io) (no virtualenv to
+manage), then run a bundled example:
 
 ```bash
-dpspice run examples/rlc.sp
+# 1. Install the `dpspice` command + its CLI dependencies
+pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git"
+
+# 2. Confirm it is on your PATH
+dpspice --version          # -> 1.0.3
+
+# 3. Inspect a circuit (what will it decide?) ...
+dpspice info  examples/rlc.sp
+
+# 4. ... then simulate it
+dpspice run   examples/rlc.sp
 ```
 
-## Install
+`dpspice run` parses the netlist, announces every auto-decision, solves, and
+prints a per-node summary:
+
+```text
+╭──────────────────────────────── dpspice run ─────────────────────────────────╮
+│ Solver      IDP                                                               │
+│ Reason      linear circuit, no nonlinear devices -> IDP single-shift          │
+│             transient                                                         │
+│ Carrier     92300 Hz                                                          │
+│ MNA states  5                                                                 │
+│ Solve time  355.5 ms                                                          │
+╰───────────────────────────────────────────────────────────────────────────────╯
+┏━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ node ┃ final    ┃ peak   ┃ rms    ┃
+┡━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ N001 │ 0.2487   │ 1      │ 0.7077 │
+│ N002 │ 0.002278 │ 0.9604 │ 0.3719 │
+│ N003 │ 11.29    │ 12.1   │ 7.159  │
+└──────┴──────────┴────────┴────────┘
+```
+
+The bundled `examples/` netlists ship inside the package, so they resolve from
+any working directory. Add `--out result.json` to save the full waveforms, or
+`--json` for machine-readable output (see [Commands](#commands)). On a bare
+`pipx install` (no `[cli]`), the `dpspice` command prints a one-line hint to add
+the CLI extras; `import dpspice` works either way.
+
+## Install (development)
+
+To hack on the engine or run the test suite, install from a clone in editable
+mode:
 
 ```bash
 git clone https://github.com/doyun-gu/dpspice-ecce2026
@@ -47,8 +106,11 @@ pytest                  # golden regression + determinism + error catalogue
 dpspice suite --quick   # real engine cross-validated against ngspice
 ```
 
-See `CONTRIBUTING.md` for the determinism and golden-baseline contracts, and
-`REPRODUCIBILITY.md` for the paper-artifact-to-command map.
+See `CONTRIBUTING.md` for the determinism and golden-baseline contracts,
+`REPRODUCIBILITY.md` for the paper-artifact-to-command map (and exactly what is
+and isn't reproducible from this repo alone), and `PAPER_CODE_MISMATCHES.md` for
+the honest, on-record list of places where a regenerated number differs from the
+paper text — recorded as findings, never silently patched.
 
 ## Notebooks
 
@@ -57,6 +119,36 @@ Five worked examples live in [`notebooks/`](notebooks/), runnable after
 cross-validation against ngspice (with a bundled `.raw` fallback), the nonlinear
 harmonic-balance path, and scaling. They ship with rendered outputs; see
 [`notebooks/README.md`](notebooks/README.md) for the re-execute command.
+
+## Netlist format
+
+DPSpice reads a practical subset of SPICE. A netlist is a title line, element
+and dot-command lines, and `.end`:
+
+```spice
+* Series RLC resonant circuit
+V1 N001 0   SINE(0 1 92.3k)
+R1 N001 N002 3.0
+L1 N002 N003 100.04u
+C1 N003 0    30.07n
+R2 N003 0    2k
+.tran 0 0.2m
+.end
+```
+
+| Supported | Notes |
+|---|---|
+| `R`, `L`, `C` | passive elements; engineering suffixes (`k`, `u`, `n`, `p`, `m`, `meg`) |
+| `V`, `I` sources | `DC`, `SINE(off ampl freq)`, `PULSE(...)`, `PWL(...)` |
+| `K` | mutual inductive coupling (transformers, WPT links) |
+| `D` | diode (`.model D(Is=... N=...)`); the **only** nonlinear device in v1 |
+| `.tran`, `.ic`, `.param`, `.model`, `.options`, `.end`, `.backanno` | `.options` / `.backanno` are tolerated; `{expr}` parameter expressions are evaluated |
+
+**Not yet supported** (these parse but the solver rejects them with a clear
+message, rather than guessing): MOSFET `M` and BJT `Q` models, and subcircuit
+expansion (`.subckt` / `X`). `.ac` is parsed but the engine targets transient
+(`.tran`). Feed a netlist DPSpice can't handle and it raises a `DpspiceError`
+that names the unsupported card — never a traceback.
 
 ## How it decides (three tiers)
 
@@ -160,5 +252,37 @@ a clear, express license to any patent claims practiced by this code.
 
 ## Citation
 
-See `CITATION.cff`. If you use DPSpice in academic work, please cite the
-ECCE 2026 paper.
+If you use DPSpice in academic work, please cite **both**: the paper for the
+*method*, and the Zenodo DOI for the *archived software* you ran.
+
+GitHub's "Cite this repository" button reads `CITATION.cff`. The BibTeX:
+
+**Method (the paper):**
+
+```bibtex
+@inproceedings{gu2026dpspice,
+  author    = {Gu, Doyun and Zhang, Cheng},
+  title     = {{DPSpice}: Topology-Independent Dynamic Phasor Simulation via Modified Nodal Analysis},
+  booktitle = {2026 IEEE Energy Conversion Congress and Exposition (ECCE)},
+  address   = {Vancouver, Canada},
+  publisher = {IEEE},
+  year      = {2026}
+  % IEEE DOI to be added at publication
+}
+```
+
+**Software (this implementation):** cite the Zenodo *concept* DOI
+[`10.5281/zenodo.21085058`](https://doi.org/10.5281/zenodo.21085058), which
+always resolves to the latest archived version.
+
+```bibtex
+@software{gu2026dpspice_software,
+  author    = {Gu, Doyun and Zhang, Cheng},
+  title     = {{DPSpice}: Topology-Independent Dynamic-Phasor Circuit Simulation},
+  publisher = {Zenodo},
+  version   = {v1.0.3},
+  doi       = {10.5281/zenodo.21085058},
+  url       = {https://doi.org/10.5281/zenodo.21085058},
+  year      = {2026}
+}
+```

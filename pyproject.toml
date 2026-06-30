@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dpspice"
-version = "1.0.1"
+version = "1.0.3"
 description = "Topology-independent dynamic-phasor circuit simulation — netlist in, result out (ECCE 2026)."
 readme = "README.md"
 requires-python = ">=3.10"

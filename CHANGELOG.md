@@ -4,6 +4,43 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-06-30
+
+Documentation and presentation release. No engine, API, or CLI-behavior change
+from 1.0.1; this version exists to make the citable archive internally
+consistent (its code self-reports its own version) and to finish the docs around
+the Zenodo DOI.
+
+### Added
+
+- **Zenodo DOI assets.** A DOI badge, a `doi:` field in `CITATION.cff`, and
+  BibTeX entries (paper + software) in the README. Cite the concept DOI
+  [`10.5281/zenodo.21085058`](https://doi.org/10.5281/zenodo.21085058), which
+  always resolves to the latest archived version.
+- **README user manual.** A copy-paste Quickstart (pipx install through first
+  simulation, with captured output), a **Netlist format** section documenting
+  the supported SPICE subset (R/L/C, V/I sources, K coupling, D diode) and what
+  is not yet supported (MOSFET/BJT, subcircuits), and a top-of-README result
+  figure (`docs/img/overview.png`) generated from a real engine run.
+
+### Changed
+
+- **Citation metadata corrected.** `CITATION.cff` now lists both authors
+  (Gu, Doyun; Zhang, Cheng), the full paper title, and the Zenodo DOI.
+- **Version strings unified.** `pyproject.toml`, `__version__`, the CLI banner,
+  `CITATION.cff`, and the README all read 1.0.3 (the 1.0.2 archive shipped code
+  that still self-reported 1.0.1; this release fixes that label mismatch).
+
+[1.0.3]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.3
+
+## [1.0.2] - 2026-06-30
+
+Archival release. Re-tag of the 1.0.1 code to mint a citable Zenodo archive
+under the concept DOI. No source change from 1.0.1 (the tagged tree still
+self-reports 1.0.1; corrected in 1.0.3).
+
+[1.0.2]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.2
+
 ## [1.0.1] - 2026-06-30
 
 Cosmetic release. No behavior, API, or CLI-contract change; the 17 CLI-contract

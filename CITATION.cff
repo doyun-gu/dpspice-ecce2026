@@ -1,19 +1,33 @@
 cff-version: 1.2.0
 title: "DPSpice: Topology-Independent Dynamic-Phasor Circuit Simulation"
-message: "If you use this software, please cite the accompanying ECCE 2026 paper."
+message: "If you use this software, please cite both the archived software (via the Zenodo DOI below) and the accompanying ECCE 2026 paper (see preferred-citation)."
 type: software
 authors:
   - family-names: Gu
     given-names: Doyun
+    affiliation: "University of Manchester"
+  - family-names: Zhang
+    given-names: Cheng
+    affiliation: "University of Manchester"
 repository-code: "https://github.com/doyun-gu/dpspice-ecce2026"
+url: "https://github.com/doyun-gu/dpspice-ecce2026"
 license: Apache-2.0
-version: 1.0.1
+version: 1.0.3
+doi: 10.5281/zenodo.21085058
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.21085058
+    description: "Concept DOI — always resolves to the latest archived version (cite this)."
 preferred-citation:
   type: conference-paper
-  title: "Topology-Independent Dynamic Phasor Simulation"
+  title: "DPSpice: Topology-Independent Dynamic Phasor Simulation via Modified Nodal Analysis"
   authors:
     - family-names: Gu
       given-names: Doyun
+      affiliation: "University of Manchester"
+    - family-names: Zhang
+      given-names: Cheng
+      affiliation: "University of Manchester"
   collection-title: "2026 IEEE Energy Conversion Congress and Exposition (ECCE)"
   conference:
     name: "IEEE Energy Conversion Congress and Exposition (ECCE)"
