@@ -4,6 +4,32 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-07-01
+
+Presentation release for the worked-example notebooks. No engine, solver, or
+CLI-behavior change; every NRMSE, R², conduction angle, and speedup is exactly
+what the engine produced in 1.0.3. This pass is about how those results read.
+
+### Added
+
+- **`dpspice.plotting.style_table(df, ...)`.** A small house-style helper that
+  renders a pandas DataFrame as one consistent, clean table (teal header,
+  right-aligned numerics, formatted values — no raw float spew). Replaces the
+  ad-hoc matplotlib table previously in `dpspice.plotting`.
+- **pandas** added to the `viz` (and `dev`) extra to back the styled tables.
+
+### Changed
+
+- **High-DPI figures.** `use_style()` now sets retina-friendly defaults
+  (`figure.dpi` 150, `savefig.dpi` 200, 7×4 figsize) so notebook and README
+  figures render crisp on screen and on GitHub.
+- **Notebooks 01–05 re-rendered.** One styled table per result (duplicate
+  plain-text dumps removed), paper-aligned titles, consistent palette, and a
+  "corresponds to the paper" note in each header. Outputs re-committed; the
+  numbers are unchanged.
+
+[1.0.4]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.4
+
 ## [1.0.3] - 2026-06-30
 
 Documentation and presentation release. No engine, API, or CLI-behavior change

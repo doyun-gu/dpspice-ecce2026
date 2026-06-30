@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dpspice"
-version = "1.0.3"
+version = "1.0.4"
 description = "Topology-independent dynamic-phasor circuit simulation — netlist in, result out (ECCE 2026)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -43,6 +43,7 @@ mcp = [
 # Notebook / waveform plotting.
 viz = [
     "matplotlib>=3.8",
+    "pandas>=2.0",
 ]
 # Cross-validation oracle. ngspice is an external binary installed separately
 # (macOS: `brew install ngspice`); no extra Python deps are required, so this
@@ -58,6 +59,7 @@ dev = [
     "pyfiglet>=1.0",
     "mcp>=1.2",
     "matplotlib>=3.8",
+    "pandas>=2.0",
 ]
 # Convenience: install the full user-facing stack.
 all = [

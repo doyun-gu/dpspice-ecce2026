@@ -4,33 +4,35 @@ A small, dependency-light house style so every figure and table in the
 notebooks (and the README hero image) shares one coherent look: muted,
 instrument-grade colours with a teal accent, clean grids, no chartjunk.
 
-Requires the ``viz`` extra (matplotlib)::
+Requires the ``viz`` extra (matplotlib + pandas)::
 
     pip install 'dpspice[viz]'
 
 Typical use at the top of a notebook::
 
-    from dpspice.plotting import use_style, PALETTE, table
+    %config InlineBackend.figure_format = "retina"
+    from dpspice.plotting import use_style, PALETTE, style_table
+    import pandas as pd
     use_style()
 
 Then plot as usual; the palette and rcParams are applied globally. Use
-``PALETTE`` for explicit series colours and :func:`table` to render a tidy
-summary table that matches the figure styling (no pandas needed).
+``PALETTE`` for explicit series colours and :func:`style_table` to render a
+clean, consistently-styled pandas table.
 """
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Mapping, Sequence
 
 try:
     import matplotlib as mpl
-    import matplotlib.pyplot as plt
+    import matplotlib.pyplot as plt  # noqa: F401  (re-exported convenience)
 except ModuleNotFoundError as exc:  # viz extra not installed
     raise SystemExit(
         f"dpspice.plotting needs the plotting extra (missing: {exc.name}). "
         f"Install it with:  pip install 'dpspice[viz]'"
     )
 
-__all__ = ["PALETTE", "CYCLE", "use_style", "table"]
+__all__ = ["PALETTE", "CYCLE", "use_style", "style_table"]
 
 # --- Palette -----------------------------------------------------------------
 # Muted, professional, PSS/E-adjacent. Teal is the DPSpice accent (matches the
@@ -55,15 +57,16 @@ CYCLE = [PALETTE["teal"], PALETTE["ink"], PALETTE["clay"],
 def use_style() -> None:
     """Apply the DPSpice house style to matplotlib's global rcParams.
 
-    Idempotent; call once near the top of a notebook. Affects every
-    subsequent figure (colours, fonts, grid, spines, legend, dpi).
+    High-DPI (crisp on screen and on GitHub), a consistent figure size, the
+    teal-led palette, subtle grids behind the data, and clean spines.
+    Idempotent; call once near the top of a notebook.
     """
     mpl.rcParams.update({
-        # canvas
-        "figure.figsize":   (7.2, 3.4),
-        "figure.dpi":       110,
+        # canvas — high-DPI for crisp rendering
+        "figure.figsize":   (7.0, 4.0),
+        "figure.dpi":       150,
+        "savefig.dpi":      200,
         "figure.facecolor": PALETTE["paper"],
-        "savefig.dpi":      150,
         "savefig.bbox":     "tight",
         "savefig.facecolor": PALETTE["paper"],
         # fonts
@@ -82,7 +85,7 @@ def use_style() -> None:
         "axes.linewidth":   0.8,
         "axes.spines.top":   False,
         "axes.spines.right": False,
-        "axes.axisbelow":   True,
+        "axes.axisbelow":   True,            # grid sits behind the data
         "axes.prop_cycle":  mpl.cycler(color=CYCLE),
         # grid
         "axes.grid":        True,
@@ -113,79 +116,66 @@ def use_style() -> None:
     })
 
 
-def table(headers: Sequence[str],
-          rows: Sequence[Sequence[object]],
-          title: str | None = None,
-          col_align: Sequence[str] | None = None,
-          col_width: Sequence[float] | None = None,
-          row_height: float = 0.46):
-    """Render a tidy summary table as a matplotlib figure (no pandas).
+def style_table(df,
+                caption: str | None = None,
+                formats: Mapping[str, str] | None = None,
+                right: Sequence[str] | None = None,
+                left: Sequence[str] | None = None):
+    """Return a consistently-styled pandas ``Styler`` for a DataFrame.
 
-    Header band in teal with white text, zebra-striped body, sensible
-    numeric right-alignment. Returns ``(fig, ax)`` so it embeds as a figure
-    in notebook output and matches the surrounding plots.
+    One coherent table look across all notebooks: teal header band, zebra
+    body, left-aligned labels and right-aligned numbers, a left caption. The
+    returned Styler renders as native HTML in Jupyter and on GitHub.
 
     Parameters
     ----------
-    headers : column titles.
-    rows    : sequence of rows (each a sequence of cell values, str()'d).
-    title   : optional caption above the table.
-    col_align : per-column 'left' | 'center' | 'right'. Defaults: first
-        column left, the rest right (the common label-then-numbers layout).
-    col_width : relative column widths (auto-sized from content if omitted).
-    row_height : per-row height in figure-inches.
+    df       : the DataFrame to display.
+    caption  : optional caption shown above the table.
+    formats  : per-column format strings, e.g. ``{"NRMSE": "{:.3e}"}``.
+    right/left : column names to force right/left alignment. By default
+        numeric columns are right-aligned and the rest left-aligned.
     """
-    ncols = len(headers)
-    body = [[("" if c is None else str(c)) for c in r] for r in rows]
+    import pandas as pd  # lazy: tables need pandas, plain plots do not
 
-    if col_align is None:
-        col_align = ["left"] + ["right"] * (ncols - 1)
-    if col_width is None:
-        widths = []
-        for j in range(ncols):
-            cells = [headers[j]] + [r[j] for r in body]
-            widths.append(max(len(c) for c in cells))
-        total = sum(widths) or 1
-        col_width = [w / total for w in widths]
+    num_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
+    right = list(num_cols if right is None else right)
+    left = list([c for c in df.columns if c not in right] if left is None else left)
 
-    # Figure width from the widest row's character count, clamped to a sane band.
-    content_chars = max([sum(len(h) for h in headers)]
-                        + [sum(len(c) for c in r) for r in body])
-    fig_w = max(4.2, min(11.0, 0.13 * content_chars + 1.2 * ncols))
-    body_h = row_height * (len(body) + 1)        # header + body rows
-    title_h = 0.42 if title else 0.0
-    fig_h = body_h + title_h
+    sty = df.style
+    if formats:
+        sty = sty.format(formats)
+    sty = sty.hide(axis="index")
+    if caption:
+        sty = sty.set_caption(caption)
 
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h))
-    ax.axis("off")
+    sty = sty.set_table_styles([
+        {"selector": "", "props": [
+            ("border-collapse", "collapse"),
+            ("font-family", "-apple-system, BlinkMacSystemFont, Helvetica, Arial, sans-serif"),
+            ("font-size", "13px"),
+            ("margin", "4px 0 12px 0")]},
+        {"selector": "caption", "props": [
+            ("caption-side", "top"), ("text-align", "left"),
+            ("font-weight", "600"), ("font-size", "13.5px"),
+            ("color", PALETTE["ink"]), ("padding", "0 0 8px 2px")]},
+        {"selector": "th.col_heading", "props": [
+            ("background-color", PALETTE["teal"]), ("color", "white"),
+            ("font-weight", "600"), ("padding", "7px 14px"),
+            ("border", "none"), ("white-space", "nowrap")]},
+        {"selector": "td", "props": [
+            ("padding", "6px 14px"), ("border", "none"),
+            ("color", PALETTE["ink"]), ("white-space", "nowrap")]},
+        {"selector": "tbody tr:nth-child(even)", "props": [
+            ("background-color", PALETTE["band"])]},
+        {"selector": "tbody tr:hover", "props": [
+            ("background-color", "#e8eef0")]},
+    ])
 
-    top = body_h / fig_h                          # table fills the lower band
-    if title:
-        ax.text(0.0, top + (1 - top) * 0.30, title, transform=ax.transAxes,
-                ha="left", va="bottom", fontsize=12.5, fontweight="bold",
-                color=PALETTE["ink"])
-
-    tbl = ax.table(
-        cellText=body,
-        colLabels=list(headers),
-        colWidths=list(col_width),
-        cellLoc="center",
-        bbox=[0, 0, 1, top],                      # anchor: no centering gap
-    )
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(10)
-
-    align_map = {"left": "left", "center": "center", "right": "right"}
-    for (r, c), cell in tbl.get_celld().items():
-        cell.set_edgecolor(PALETTE["paper"])
-        cell.set_linewidth(2)
-        cell.PAD = 0.06
-        cell.get_text().set_ha(align_map.get(col_align[c], "center"))
-        if r == 0:  # header band
-            cell.set_facecolor(PALETTE["teal"])
-            cell.get_text().set_color(PALETTE["paper"])
-            cell.get_text().set_fontweight("bold")
-        else:
-            cell.set_facecolor(PALETTE["band"] if r % 2 else PALETTE["paper"])
-            cell.get_text().set_color(PALETTE["ink"])
-    return fig, ax
+    # Per-column alignment for both header and body.
+    col_styles = {}
+    for c in df.columns:
+        align = "right" if c in right else "left"
+        col_styles[c] = [{"selector": "th", "props": [("text-align", align)]},
+                         {"selector": "td", "props": [("text-align", align)]}]
+    sty = sty.set_table_styles(col_styles, overwrite=False, axis=0)
+    return sty

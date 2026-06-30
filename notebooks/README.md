@@ -27,10 +27,11 @@ The committed notebooks already contain their executed outputs (printed values
 and figures), so they read correctly on GitHub without running anything. Every
 value is produced by a real solve at execution time; nothing is hard-coded.
 
-Figures and summary tables share one house style from `dpspice.plotting`
-(`use_style()`, the `PALETTE`, and `table()`), so the whole set is visually
-consistent. You can reuse it in your own figures: `from dpspice.plotting import
-use_style, PALETTE, table`.
+Figures and summary tables share one house style from `dpspice.plotting`:
+`use_style()` applies high-DPI, retina-friendly matplotlib defaults and the
+`PALETTE`, and `style_table(df, ...)` renders a clean, consistently-formatted
+pandas table. Reuse it in your own work: `from dpspice.plotting import
+use_style, PALETTE, style_table`.
 
 ## Re-executing them
 

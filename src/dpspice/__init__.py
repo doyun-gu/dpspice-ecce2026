@@ -10,7 +10,7 @@ Importing this package is side-effect-free: it prints nothing, needs no
 terminal, and starts no solve. Interactive chrome (banners, spinners) lives
 only in the CLI layer (:mod:`dpspice.cli`).
 """
-__version__ = "1.0.3"
+__version__ = "1.0.4"
 
 from .api import (  # noqa: E402
     load,

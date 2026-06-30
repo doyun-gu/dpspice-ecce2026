@@ -12,7 +12,7 @@ authors:
 repository-code: "https://github.com/doyun-gu/dpspice-ecce2026"
 url: "https://github.com/doyun-gu/dpspice-ecce2026"
 license: Apache-2.0
-version: 1.0.3
+version: 1.0.4
 doi: 10.5281/zenodo.21085058
 identifiers:
   - type: doi
