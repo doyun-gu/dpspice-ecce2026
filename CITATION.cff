@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: "DPSpice: Topology-Independent Dynamic-Phasor Circuit Simulation"
+message: "If you use this software, please cite the accompanying ECCE 2026 paper."
+type: software
+authors:
+  - family-names: Gu
+    given-names: Doyun
+repository-code: "https://github.com/doyun-gu/dpspice-ecce2026"
+license: Apache-2.0
+version: 1.0.0
+preferred-citation:
+  type: conference-paper
+  title: "Topology-Independent Dynamic Phasor Simulation"
+  authors:
+    - family-names: Gu
+      given-names: Doyun
+  collection-title: "2026 IEEE Energy Conversion Congress and Exposition (ECCE)"
+  conference:
+    name: "IEEE Energy Conversion Congress and Exposition (ECCE)"
+    city: Vancouver
+    country: CA
+  year: 2026

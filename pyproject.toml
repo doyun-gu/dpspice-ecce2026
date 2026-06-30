@@ -1,0 +1,100 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dpspice"
+version = "1.0.0"
+description = "Topology-independent dynamic-phasor circuit simulation — netlist in, result out (ECCE 2026)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Doyun Gu" },
+]
+keywords = ["spice", "circuit-simulation", "dynamic-phasor", "harmonic-balance", "power-electronics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+# Lean core: just the solver and netlist parser. `import dpspice` and the
+# Python API run with only these. Everything user-facing (CLI, MCP, plotting)
+# is an opt-in extra below.
+dependencies = [
+    "numpy>=2.0,<3.0",
+    "scipy>=1.11,<2.0",
+    "simpleeval>=0.9.13",
+]
+
+[project.optional-dependencies]
+# The `dpspice` command-line interface (banner, panels, tables).
+cli = [
+    "typer>=0.12,<1.0",
+    "rich>=13.7",
+    "pyfiglet>=1.0",
+]
+# The `dpspice-mcp` Model Context Protocol server.
+mcp = [
+    "mcp>=1.2",
+]
+# Notebook / waveform plotting.
+viz = [
+    "matplotlib>=3.8",
+]
+# Cross-validation oracle. ngspice is an external binary installed separately
+# (macOS: `brew install ngspice`); no extra Python deps are required, so this
+# is a documented marker rather than a package list.
+validate = []
+# Future compiled backend hook; no pip-installable component yet.
+native = []
+# Everything needed to develop and run the test suite + CI.
+dev = [
+    "pytest>=8.0",
+    "typer>=0.12,<1.0",
+    "rich>=13.7",
+    "pyfiglet>=1.0",
+    "mcp>=1.2",
+    "matplotlib>=3.8",
+]
+# Convenience: install the full user-facing stack.
+all = [
+    "typer>=0.12,<1.0",
+    "rich>=13.7",
+    "pyfiglet>=1.0",
+    "mcp>=1.2",
+    "matplotlib>=3.8",
+]
+
+[project.scripts]
+dpspice = "dpspice.cli:main"
+dpspice-mcp = "dpspice.mcp_server:main"
+
+[project.urls]
+Homepage = "https://github.com/doyun-gu/dpspice-ecce2026"
+Repository = "https://github.com/doyun-gu/dpspice-ecce2026"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dpspice = [
+    "_engine/**/*.py",
+    "data/examples/*.sp",
+    "data/examples/*.cir",
+    "data/examples/*.net",
+    "data/examples/*.raw",
+]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-q -ra"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

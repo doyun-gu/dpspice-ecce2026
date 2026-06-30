@@ -1,0 +1,123 @@
+{
+  "_meta": {
+    "captured_on": "2026-06-30",
+    "engine_backend": "python",
+    "ngspice_version": "45.2",
+    "note": "Frozen regression baseline. Every value was captured ONCE from a real run of the public adaptive API via tests/golden_cases.py and is never edited by hand. To re-freeze after an intended engine change, run `python -m pytest tests/test_golden.py --update-golden`. The solver is bit-identical run to run (see test_determinism.py); the per-entry rtol/atol only absorb cross-platform LAPACK/numpy float variation, NOT run-to-run noise. `paper` points at the artifact each number backs; where the live number disagrees with the paper text, that gap is recorded in REPRODUCIBILITY.md as a finding, not patched here.",
+    "tolerance_rule": "fail if abs(live - value) > atol + rtol * abs(value)"
+  },
+  "entries": {
+    "rlc_idp_vs_td_580krad_nrmse": {
+      "value": 6.48015505476752e-05,
+      "rtol": 0.4,
+      "atol": 3e-05,
+      "requires_ngspice": false,
+      "paper": "Sec. accuracy claim: IDP single-shift matches full TD on the series-RLC benchmark.",
+      "source": "compare V(out): mode=idp vs mode=td, series RLC driven at 580 krad/s (resonance)."
+    },
+    "rlc_idp_vs_td_580krad_r2": {
+      "value": 0.9999999442285916,
+      "rtol": 0.0,
+      "atol": 1e-06,
+      "requires_ngspice": false,
+      "paper": "Same accuracy claim; R^2 reported as ~1.0.",
+      "source": "compare V(out): mode=idp vs mode=td at 580 krad/s."
+    },
+    "rlc_idp_vs_td_650krad_nrmse": {
+      "value": 5.9212769907346916e-05,
+      "rtol": 0.4,
+      "atol": 3e-05,
+      "requires_ngspice": false,
+      "paper": "Off-resonance accuracy: IDP stays exact away from the tuned point.",
+      "source": "compare V(out): mode=idp vs mode=td at 650 krad/s (off resonance)."
+    },
+    "rlc_idp_vs_td_650krad_r2": {
+      "value": 0.9999999488995459,
+      "rtol": 0.0,
+      "atol": 1e-06,
+      "requires_ngspice": false,
+      "paper": "Off-resonance accuracy; R^2 ~1.0.",
+      "source": "compare V(out): mode=idp vs mode=td at 650 krad/s."
+    },
+    "rlc_idp_vs_td_sweep_50p_nrmse": {
+      "value": 0.00041658,
+      "rtol": 0.4,
+      "atol": 0.0001,
+      "requires_ngspice": false,
+      "paper": "Table 3 per-duration accuracy: IDP-vs-TD NRMSE at a 50-cycle window.",
+      "source": "reproduce.duration_sweep([50]), V(out) IDP vs TD NRMSE."
+    },
+    "rlc_idp_vs_td_sweep_200p_nrmse": {
+      "value": 0.0019058,
+      "rtol": 0.4,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table 3 per-duration accuracy: NRMSE grows with the simulated window (finding, see PAPER_CODE_MISMATCHES.md).",
+      "source": "reproduce.duration_sweep([200]), V(out) IDP vs TD NRMSE."
+    },
+    "rectifier_conduction_halfwave_deg": {
+      "value": 173.671875,
+      "rtol": 0.0,
+      "atol": 1.5,
+      "requires_ngspice": false,
+      "paper": "Fig. 5 / Table 4 rectifier: half-wave (no smoothing cap) conduction angle ~175 deg.",
+      "source": "HB solve, summary.conduction_angle_deg, half-wave rectifier C=0."
+    },
+    "rectifier_conduction_C10u_deg": {
+      "value": 100.546875,
+      "rtol": 0.0,
+      "atol": 1.5,
+      "requires_ngspice": false,
+      "paper": "Rectifier conduction shrinks with smoothing cap; C=10uF ~102 deg.",
+      "source": "HB solve, summary.conduction_angle_deg, rectifier C=10uF."
+    },
+    "rectifier_conduction_C100u_deg": {
+      "value": 47.109375,
+      "rtol": 0.0,
+      "atol": 1.5,
+      "requires_ngspice": false,
+      "paper": "Rectifier conduction with C=100uF ~48 deg.",
+      "source": "HB solve, summary.conduction_angle_deg, rectifier C=100uF."
+    },
+    "rectifier_nrmse_vs_ltspice_autoK": {
+      "value": 0.00206308039955184,
+      "rtol": 0.3,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table 4 accuracy of HB rectifier vs LTspice reference waveform.",
+      "source": "validate V(out) vs bundled examples/rectifier_halfwave.raw, auto harmonic count."
+    },
+    "rectifier_nrmse_vs_ltspice_K40": {
+      "value": 0.0005965910942059167,
+      "rtol": 0.3,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table 4 accuracy improves as harmonic count K rises (K=40).",
+      "source": "validate V(out) vs bundled rectifier_halfwave.raw, --harmonics 40."
+    },
+    "rlc_nrmse_vs_ngspice": {
+      "value": 5.536840872227976e-06,
+      "rtol": 0.5,
+      "atol": 5e-05,
+      "requires_ngspice": true,
+      "paper": "Validation-vs-ngspice tightens far below the paper's vs-LTspice band (see REPRODUCIBILITY.md).",
+      "source": "validate series RLC (580 krad/s) against auto ngspice run, worst node NRMSE."
+    },
+    "coupled_k0.9_nrmse_vs_ngspice": {
+      "value": 1.2748429096469864e-06,
+      "rtol": 0.5,
+      "atol": 5e-05,
+      "requires_ngspice": true,
+      "paper": "Tightly-coupled (k=0.9) magnetics; paper Table 2 reports ~0.54% vs LTspice.",
+      "source": "validate coupled-inductor pair k=0.9 against auto ngspice run, worst node NRMSE."
+    },
+    "wpt_k0.2_nrmse_vs_ngspice": {
+      "value": 6.152017309647795e-05,
+      "rtol": 0.5,
+      "atol": 5e-05,
+      "requires_ngspice": true,
+      "paper": "Series-series WPT link k=0.2; paper Table 2 reports ~2.87% vs LTspice.",
+      "source": "validate WPT link (general SVD reduction path) against auto ngspice run, worst node NRMSE."
+    }
+  }
+}
