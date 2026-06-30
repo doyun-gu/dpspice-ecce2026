@@ -13,6 +13,7 @@ from typing import Optional
 
 try:
     import typer
+    from rich import box
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
@@ -171,7 +172,8 @@ def info(
     panel.add_row("Devices", ", ".join(result.devices))
     if result.tran:
         panel.add_row(".tran", str(result.tran))
-    out.print(Panel(panel, title="dpspice info", border_style="cyan"))
+    out.print(Panel(panel, title="dpspice info", border_style="cyan",
+                    box=box.SQUARE, expand=False))
     out.print(_decisions_table(result.decisions))
     for w in result.warnings:
         err.print(Text(f"warning: {w}", style="yellow"))
@@ -262,7 +264,8 @@ def _render_run(result, quiet: bool) -> None:
     head.add_row("Solve time", f"{result.solve_time*1000:.1f} ms")
     if "conduction_angle_deg" in result.summary:
         head.add_row("Conduction angle", f"{result.summary['conduction_angle_deg']:.1f}°")
-    out.print(Panel(head, title="dpspice run", border_style="green"))
+    out.print(Panel(head, title="dpspice run", border_style="green",
+                    box=box.SQUARE, expand=False))
 
     nodes = result.summary.get("nodes", {})
     if nodes:
@@ -412,7 +415,7 @@ def reproduce(
         _line(json.dumps(result))
         return
     out.print(Panel(json.dumps(result, indent=2), title=result.get("label", "reproduce"),
-                    border_style="cyan"))
+                    border_style="cyan", box=box.SQUARE, expand=False))
 
 
 # ----------------------------------------------------------------------
@@ -555,7 +558,8 @@ def _render_suite(report: dict) -> None:
         body.append(f"reason: {c['reason']}\n", style="red")
         body.append("netlist:\n", style="bold")
         body.append(c["netlist"])
-        out.print(Panel(body, title=f"FAIL · {c['family']}/{c['name']}", border_style="red"))
+        out.print(Panel(body, title=f"FAIL · {c['family']}/{c['name']}", border_style="red",
+                         box=box.SQUARE, expand=False))
     for c in border:
         out.print(Text(f"borderline · {c['family']}/{c['name']}: "
                        f"NRMSE {c['nrmse']:.3e} vs band {c['band']:.1e}", style="yellow"))

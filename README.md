@@ -44,14 +44,13 @@ dpspice run   examples/rlc.sp
 prints a per-node summary:
 
 ```text
-╭──────────────────────────────── dpspice run ─────────────────────────────────╮
-│ Solver      IDP                                                               │
-│ Reason      linear circuit, no nonlinear devices -> IDP single-shift          │
-│             transient                                                         │
-│ Carrier     92300 Hz                                                          │
-│ MNA states  5                                                                 │
-│ Solve time  355.5 ms                                                          │
-╰───────────────────────────────────────────────────────────────────────────────╯
+┌───────────────────────────────── dpspice run ──────────────────────────────────┐
+│ Solver      IDP                                                                │
+│ Reason      linear circuit, no nonlinear devices -> IDP single-shift transient │
+│ Carrier     92300 Hz                                                           │
+│ MNA states  5                                                                  │
+│ Solve time  354.8 ms                                                           │
+└────────────────────────────────────────────────────────────────────────────────┘
 ┏━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
 ┃ node ┃ final    ┃ peak   ┃ rms    ┃
 ┡━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
