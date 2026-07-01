@@ -113,6 +113,11 @@ class Result:
         return self._run.waveforms
 
     @property
+    def envelopes(self) -> Optional[List[Waveform]]:
+        """Phasor-magnitude envelopes |X(t)| (``with_envelopes=True``, IDP only)."""
+        return self._run.envelopes
+
+    @property
     def decisions(self):
         return self._run.decisions
 
@@ -189,11 +194,13 @@ class Circuit:
     def run(self, mode: str = "auto", harmonics: Optional[int] = None,
             omega: Optional[Union[Number, str]] = None,
             tol: Optional[float] = None,
-            with_waveforms: bool = True) -> Result:
+            with_waveforms: bool = True,
+            with_envelopes: bool = False) -> Result:
         """Auto-decide and simulate. Returns a :class:`Result`."""
         run = dispatch.run(self.netlist, mode=mode, harmonics=harmonics,
                            omega_hz=_coerce_omega(omega), tol=tol,
-                           with_waveforms=with_waveforms)
+                           with_waveforms=with_waveforms,
+                           with_envelopes=with_envelopes)
         return Result(run)
 
     # -- cross-validate --------------------------------------------------

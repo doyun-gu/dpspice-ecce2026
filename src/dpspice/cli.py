@@ -190,6 +190,12 @@ def run(
     harmonics: Optional[int] = typer.Option(None, "--harmonics", "-K", help="HB harmonic count K."),
     omega: Optional[str] = typer.Option(None, help="Carrier frequency in Hz (SPICE suffixes ok)."),
     tol: Optional[float] = typer.Option(None, help="Solver tolerance."),
+    envelope: bool = typer.Option(
+        False, "--envelope",
+        help="Include the phasor-magnitude envelope |X(t)| the IDP solver "
+             "integrates as an 'envelopes' list in the result payload "
+             "(--out / --json). IDP solver only; ignored (with a warning) "
+             "for td and hb."),
     out_file: Optional[str] = typer.Option(None, "--out", help="Write full result JSON here (data only)."),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Essential output only."),
     no_banner: bool = typer.Option(False, "--no-banner", help="Drop the startup banner."),
@@ -206,10 +212,12 @@ def run(
             err.print(Text(f"  ✓ Stamped MNA system ({preview.n_states} states)", style="green"))
             err.print(Text(f"  ✓ {preview.reason}", style="green"))
             with err.status(f"[cyan]Solving ({preview.mode_selected.upper()})…", spinner="dots"):
-                result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol)
+                result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
+                                 with_envelopes=envelope)
             err.print(Text(f"  ✓ Solved in {result.solve_time*1000:.1f} ms", style="green"))
         else:
-            result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol)
+            result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
+                             with_envelopes=envelope)
     except DpspiceError as exc:
         _fail(exc)
 

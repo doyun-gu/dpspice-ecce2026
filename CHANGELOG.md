@@ -4,6 +4,20 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`dpspice run --envelope`** (and `with_envelopes=True` on the Python API's
+  `run`). Exports the phasor-magnitude envelope |X(t)| the IDP solver already
+  computes internally as an `envelopes` list (same `{name, t, v}` shape and
+  decimation as `waveforms`) in the `--out` / `--json` payload. Off by
+  default — the payload shape is unchanged unless the flag is set. IDP solver
+  only: `td` and `hb` runs leave `envelopes` absent and append a warning
+  rather than fabricating one. Motivation: envelope figures (e.g. the
+  dpspice.com hero plot) are now reproducible from the public CLI instead of
+  reaching into `dpspice._engine`.
+
 ## [1.0.4] - 2026-07-01
 
 Presentation release for the worked-example notebooks. No engine, solver, or

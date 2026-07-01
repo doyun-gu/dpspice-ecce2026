@@ -72,6 +72,8 @@ class RunResult:
     summary: Dict[str, Any] = field(default_factory=dict)
     # optional full/decimated waveforms
     waveforms: List[Waveform] = field(default_factory=list)
+    # optional phasor-magnitude envelopes |X(t)| (dpspice run --envelope, IDP only)
+    envelopes: Optional[List[Waveform]] = None
     # validation (filled by dpspice validate)
     validation: Optional[Dict[str, Any]] = None
     warnings: List[str] = field(default_factory=list)
@@ -87,6 +89,11 @@ class RunResult:
         else:
             d["waveforms"] = []
             d["waveform_names"] = [w.name for w in self.waveforms]
+        if self.envelopes is None:
+            # keep the payload shape unchanged unless --envelope was requested
+            del d["envelopes"]
+        else:
+            d["envelopes"] = [asdict(w) for w in self.envelopes]
         return d
 
 

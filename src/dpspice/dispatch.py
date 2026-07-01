@@ -337,7 +337,7 @@ def _summarise_nodes(t: np.ndarray, node_voltages: dict) -> dict:
 
 
 def _run_linear(netlist_str, netlist, mode, f0, decisions, warnings,
-                with_waveforms) -> RunResult:
+                with_waveforms, with_envelopes=False) -> RunResult:
     if f0 is None and mode in ("idp",):
         raise DpspiceError(
             "IDP mode needs a carrier frequency but none was found in the netlist. "
@@ -368,6 +368,19 @@ def _run_linear(netlist_str, netlist, mode, f0, decisions, warnings,
         for name, v in node_v.items():
             waveforms.append(Waveform.from_arrays(f"V({name})", t, v))
 
+    # The phasor solver already computes the magnitude envelope |X(t)| per
+    # signal; export it verbatim when asked. The TD solver has no phasor, so
+    # there is nothing honest to export there.
+    envelopes = None
+    if with_envelopes:
+        if solver == "idp" and "envelopes" in res:
+            envelopes = [Waveform.from_arrays(name, t, env)
+                         for name, env in res["envelopes"].items()]
+        else:
+            warnings.append(
+                "--envelope: the phasor-magnitude envelope is produced by the "
+                "IDP solver only; ignored for solver 'td'.")
+
     return RunResult(
         netlist_title=netlist.title or "(untitled)",
         solver=solver,
@@ -381,6 +394,7 @@ def _run_linear(netlist_str, netlist, mode, f0, decisions, warnings,
                  "t_end": float(t[-1]) if t.size else 0.0,
                  "n_timepoints": int(t.size)},
         waveforms=waveforms,
+        envelopes=envelopes,
         warnings=warnings,
     )
 
@@ -507,7 +521,7 @@ def _run_hb(netlist_str, netlist, f0, harmonics, tol, decisions, warnings,
 
 def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
         omega_hz: Optional[float] = None, tol: Optional[float] = None,
-        with_waveforms: bool = True) -> RunResult:
+        with_waveforms: bool = True, with_envelopes: bool = False) -> RunResult:
     """Parse, auto-decide, simulate. The one-call entry point."""
     netlist_str = read_netlist(source)
     netlist = parse_ltspice_netlist(netlist_str)
@@ -533,7 +547,11 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
     _check_size(n_states)
 
     if mode_sel == "hb":
+        if with_envelopes:
+            warnings.append(
+                "--envelope: the phasor-magnitude envelope is produced by the "
+                "IDP solver only; ignored for solver 'hb'.")
         return _run_hb(netlist_str, netlist, f0, harmonics, tol,
                        decisions, warnings, with_waveforms)
     return _run_linear(netlist_str, netlist, mode_sel, f0,
-                       decisions, warnings, with_waveforms)
+                       decisions, warnings, with_waveforms, with_envelopes)
