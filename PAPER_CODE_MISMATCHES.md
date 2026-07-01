@@ -1,10 +1,10 @@
-# Paper <-> code mismatch note (verifier handoff)
+# Known paper <-> code differences
 
-Per the hardening spec: where a reproduced number disagreed with the paper
-text, I STOPPED and recorded it here rather than editing the code or the
-fixture to match. These are findings for the independent verifier and for
-Doyun to adjudicate (the paper, the reference tool, or the comparison
-methodology may need a correction or footnote). None of these were patched.
+Policy for this repository: when a number reproduced by the released engine
+disagrees with the paper text, the code and the golden fixture are **not**
+edited to make them match. The discrepancy is documented here instead, so the
+paper, the reference tool, or the comparison methodology can be corrected or
+footnoted in a future revision. Nothing below has been patched.
 
 All "this repo" numbers are real, captured once into `tests/golden_reference.json`
 from the public adaptive API on 2026-06-30 (Python backend, ngspice 45.2).
@@ -12,22 +12,23 @@ from the public adaptive API on 2026-06-30 (Python backend, ngspice 45.2).
 ## Findings
 
 1. **WPT k=0.2 link accuracy — paper 2.87%, repo 0.0062% (vs ngspice).**
-   The general SVD reduction added this session lets the WPT link solve through
-   IDP cleanly; vs an auto ngspice reference the NRMSE is 6.2e-5. The paper's
-   2.87% is vs an LTspice reference set not redistributed here. Need: the
-   original LTspice `.raw` to confirm whether 2.87% reproduces, or a footnote
-   that the released engine is materially more accurate on this case.
+   The released engine includes a general SVD reduction (added after the paper
+   experiments) that lets the WPT link solve through IDP cleanly; vs an auto
+   ngspice reference the NRMSE is 6.2e-5. The paper's 2.87% is vs an LTspice
+   reference set not redistributed here. Reconciling requires the original
+   LTspice `.raw` to confirm whether 2.87% reproduces, or a footnote that the
+   released engine is materially more accurate on this case.
 
 2. **Coupled k=0.9 accuracy — paper 0.54%, repo 0.00013% (vs ngspice).**
-   Same pattern and likely same root cause (reference tool + step). Need the
-   original LTspice reference to reconcile.
+   Same pattern and likely same root cause (reference tool + step). Requires
+   the original LTspice reference to reconcile.
 
 3. **IDP single-shift vs full TD — paper "< 1e-6 %", repo 0.0065%.**
    This is the one case where the repo is LOOSER than the paper claim. Likely a
    metric definition gap: the repo reports NRMSE (RMSE / peak-to-peak) on an
    aligned time grid, whereas "< 1e-6 %" reads like a pointwise or relative
-   steady-state error. Recommend confirming which metric the paper sentence
-   refers to and aligning the wording.
+   steady-state error. A revision should confirm which metric the paper
+   sentence refers to and align the wording.
 
 4. **Rectifier accuracy at K=40 — paper 0.14%, repo 0.06%.**
    Repo is tighter, against the bundled LTspice reference. Minor; likely a finer
@@ -42,10 +43,10 @@ from the public adaptive API on 2026-06-30 (Python backend, ngspice 45.2).
    (`dpspice reproduce --table 3` -> `idp_vs_td_duration_sweep`) shows NRMSE
    GROWS monotonically with the simulated window: 6.5e-5 @12 cycles, 4.2e-4
    @50, 1.9e-3 @200, 1.1e-2 @800, 4.4e-2 @3200 (R^2 0.9999999 -> 0.984). The
-   solvers diverge slowly over many carrier cycles (phase drift). This is real
-   engine output, not patched. Recommend the paper either (a) state the horizon
-   at which the accuracy figure was measured, or (b) report accuracy per
-   duration as the sweep does. The short-horizon numbers are excellent; the
+   solvers diverge slowly over many carrier cycles (phase drift). These are the
+   engine's actual outputs, not patched. A revision should either (a) state the
+   horizon at which the accuracy figure was measured, or (b) report accuracy
+   per duration as the sweep does. The short-horizon numbers are excellent; the
    issue is only the implied horizon-independence.
 
 7. **IEEE speedup envelope not reproducible offline.** The paper's headline
@@ -57,12 +58,12 @@ from the public adaptive API on 2026-06-30 (Python backend, ngspice 45.2).
    freezes that trend. To reproduce the published IEEE numbers, add the IEEE
    case files (or cite a DOI for them) and re-run the timing benchmark.
 
-## Recommendation
+## Resolution options
 
 The four accuracy discrepancies all point the same way: the paper's
-percentages come from an LTspice reference set that is not part of this release,
-and the offline-reproducible path uses ngspice at a finer step. Two clean
-resolutions, for Doyun to choose:
+percentages come from an LTspice reference set that is not part of this
+release, and the offline-reproducible path uses ngspice at a finer step. Two
+clean resolutions:
 
 - (a) Bundle (or cite a DOI for) the exact LTspice `.raw` files used in the
   paper, and reproduce the published percentages against them; or
@@ -70,5 +71,5 @@ resolutions, for Doyun to choose:
   and report the (tighter) repository numbers, treating the LTspice figures as
   the original-submission reference.
 
-Either way the code and the fixture were left untouched — the numbers above are
-what the engine actually produces today.
+In both cases the code and the fixture stay as they are — the numbers above
+are what the engine actually produces.

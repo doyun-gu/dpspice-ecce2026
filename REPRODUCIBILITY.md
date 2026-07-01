@@ -69,7 +69,7 @@ cross-platform LAPACK/numpy float variation, not run-to-run noise.
 These regenerated numbers disagree with the paper text. They are recorded here
 verbatim rather than adjusted, because the discrepancy itself is the finding
 (it may mean the paper, the reference tool, or the comparison methodology needs
-a footnote). See `PAPER_CODE_MISMATCHES.md` for the verifier-facing summary.
+a footnote). See `PAPER_CODE_MISMATCHES.md` for the consolidated list.
 
 | Quantity | Paper text | This repo | Direction | Likely cause |
 |---|---|---|---|---|
