@@ -23,22 +23,34 @@ def _golden(name):
         return json.load(fh)["entries"][name]
 
 
-def test_reproduce_table4_matches_golden():
-    """`reproduce --table 4` worst NRMSE must match the frozen rectifier-vs-
-    LTspice golden (auto harmonic count) within its tolerance."""
-    g = _golden("rectifier_nrmse_vs_ltspice_autoK")
-    live = float(reproduce.reproduce(table=4)["worst_nrmse"])
-    tol = g["atol"] + g["rtol"] * abs(g["value"])
-    assert abs(live - g["value"]) <= tol, (
-        f"reproduce --table 4 worst_nrmse={live!r} disagrees with golden "
-        f"{g['value']!r} (tol {tol:.3e}). If intended, re-freeze the golden; "
-        f"if this contradicts the paper, record it in PAPER_CODE_MISMATCHES.md."
+def test_reproduce_table5_matches_golden():
+    """`reproduce --table 5` must emit all three Table V rows (resistive, RC
+    mild, RC strong), and each row's NRMSE-vs-LTspice must match its frozen
+    golden within tolerance. Guards against the target silently reverting to a
+    single wrong load (the Task 1 bug)."""
+    rows = {r["case"]: r for r in reproduce.reproduce(table=5)["rows"]}
+    assert set(rows) == {"resistive", "RC, mild", "RC, strong"}, (
+        f"table 5 emitted rows {sorted(rows)}; expected the three Table V loads."
     )
+    for case, name in (
+        ("resistive", "rectifier_table5_resistive_nrmse_K15"),
+        ("RC, mild", "rectifier_table5_rcmild_nrmse_K30"),
+        ("RC, strong", "rectifier_table5_rcstrong_nrmse_K40"),
+    ):
+        g = _golden(name)
+        live = float(rows[case]["nrmse_vs_ltspice"])
+        tol = g["atol"] + g["rtol"] * abs(g["value"])
+        assert abs(live - g["value"]) <= tol, (
+            f"reproduce --table 5 [{case}] nrmse={live!r} disagrees with golden "
+            f"{g['value']!r} (tol {tol:.3e}). If intended, re-freeze the golden; "
+            f"if this contradicts the paper, record it in PAPER_CODE_MISMATCHES.md."
+        )
 
 
 def test_reproduce_table3_emits_per_duration_accuracy():
     """`reproduce --table 3` must carry per-duration IDP-vs-TD NRMSE / R^2 /
-    speedup (the paper's Table 3 accuracy+speedup content), not just timings."""
+    speedup (the paper's Table III + Table II accuracy/speedup content), not just
+    timings."""
     out = reproduce.reproduce(table=3)
     sweep = out.get("idp_vs_td_duration_sweep")
     assert sweep and len(sweep) >= 2, "table 3 missing the duration sweep"

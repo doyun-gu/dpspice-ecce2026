@@ -56,8 +56,8 @@ def _json_commands():
             (["bench", "--json"]),
             (["reproduce", "--json"]),
             (["reproduce", "--table", "3", "--json"]),
-            (["reproduce", "--table", "4", "--json"]),
-            (["reproduce", "--figure", "5", "--json"]),
+            (["reproduce", "--table", "5", "--json"]),
+            (["reproduce", "--figure", "6", "--json"]),
             (["validate", sp, "--ref", raw, "--json"]),
             (["suite", "--quick", "--json"]),
             (["suite", "--self-check", "--json"]),
@@ -105,4 +105,4 @@ def test_reproduce_no_args_json_lists_catalogue():
     cat = json.loads(stdout)
     assert "available" in cat and "external" in cat
     flags = {row["flag"] for row in cat["available"]}
-    assert {"--table 3", "--table 4", "--figure 5"} <= flags
+    assert {"--table 3", "--table 5", "--figure 6"} <= flags

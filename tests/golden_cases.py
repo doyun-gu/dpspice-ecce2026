@@ -104,6 +104,14 @@ def _ngspice_nrmse(netlist: str) -> float:
     return float(api.load(netlist).validate(ref=None).worst_nrmse)
 
 
+def _table5_nrmse(case: str) -> float:
+    """NRMSE-vs-LTspice for one Table V row, exactly as `reproduce --table 5`
+    emits it (each load at its paper harmonic count)."""
+    from dpspice import reproduce
+    rows = reproduce.reproduce(table=5)["rows"]
+    return float(next(r for r in rows if r["case"] == case)["nrmse_vs_ltspice"])
+
+
 def _sweep_nrmse(periods: int) -> float:
     """IDP-vs-TD NRMSE at a given simulated horizon (reproduce duration sweep).
     Demonstrates that accuracy degrades as the window lengthens."""
@@ -149,6 +157,9 @@ CASES: Dict[str, tuple] = {
     "rectifier_conduction_C100u_deg":    (lambda: _conduction_angle(100e-6), False),
     "rectifier_nrmse_vs_ltspice_autoK":  (lambda: _rectifier_nrmse(None), False),
     "rectifier_nrmse_vs_ltspice_K40":    (lambda: _rectifier_nrmse(40), False),
+    "rectifier_table5_resistive_nrmse_K15": (lambda: _table5_nrmse("resistive"), False),
+    "rectifier_table5_rcmild_nrmse_K30":    (lambda: _table5_nrmse("RC, mild"), False),
+    "rectifier_table5_rcstrong_nrmse_K40":  (lambda: _table5_nrmse("RC, strong"), False),
     "rlc_nrmse_vs_ngspice":      (lambda: _ngspice_nrmse(_rlc_netlist(580e3)), True),
     "coupled_k0.9_nrmse_vs_ngspice": (lambda: _ngspice_nrmse(_COUPLED_K09), True),
     "wpt_k0.2_nrmse_vs_ngspice":     (lambda: _ngspice_nrmse(_WPT_K02), True),

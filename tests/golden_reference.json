@@ -44,7 +44,7 @@
       "rtol": 0.4,
       "atol": 0.0001,
       "requires_ngspice": false,
-      "paper": "Table 3 per-duration accuracy: IDP-vs-TD NRMSE at a 50-cycle window.",
+      "paper": "Table III / Table II per-duration accuracy: IDP-vs-TD NRMSE at a 50-cycle window.",
       "source": "reproduce.duration_sweep([50]), V(out) IDP vs TD NRMSE."
     },
     "rlc_idp_vs_td_sweep_200p_nrmse": {
@@ -52,7 +52,7 @@
       "rtol": 0.4,
       "atol": 0.0005,
       "requires_ngspice": false,
-      "paper": "Table 3 per-duration accuracy: NRMSE grows with the simulated window (finding, see PAPER_CODE_MISMATCHES.md).",
+      "paper": "Table III / Table II per-duration accuracy: NRMSE grows with the simulated window (finding, see PAPER_CODE_MISMATCHES.md).",
       "source": "reproduce.duration_sweep([200]), V(out) IDP vs TD NRMSE."
     },
     "rectifier_conduction_halfwave_deg": {
@@ -60,7 +60,7 @@
       "rtol": 0.0,
       "atol": 1.5,
       "requires_ngspice": false,
-      "paper": "Fig. 5 / Table 4 rectifier: half-wave (no smoothing cap) conduction angle ~175 deg.",
+      "paper": "Fig. 6 / Table V rectifier: half-wave (no smoothing cap) conduction angle ~175 deg.",
       "source": "HB solve, summary.conduction_angle_deg, half-wave rectifier C=0."
     },
     "rectifier_conduction_C10u_deg": {
@@ -84,7 +84,7 @@
       "rtol": 0.3,
       "atol": 0.0005,
       "requires_ngspice": false,
-      "paper": "Table 4 accuracy of HB rectifier vs LTspice reference waveform.",
+      "paper": "Table V accuracy of HB rectifier vs LTspice reference waveform.",
       "source": "validate V(out) vs bundled examples/rectifier_halfwave.raw, auto harmonic count."
     },
     "rectifier_nrmse_vs_ltspice_K40": {
@@ -92,8 +92,32 @@
       "rtol": 0.3,
       "atol": 0.0005,
       "requires_ngspice": false,
-      "paper": "Table 4 accuracy improves as harmonic count K rises (K=40).",
+      "paper": "Rectifier-vs-LTspice accuracy improves as harmonic count K rises (resistive load, K=40). Sensitivity check, not a Table V row.",
       "source": "validate V(out) vs bundled rectifier_halfwave.raw, --harmonics 40."
+    },
+    "rectifier_table5_resistive_nrmse_K15": {
+      "value": 0.004086481307808887,
+      "rtol": 0.3,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table V row 1: resistive load, NRMSE vs LTspice 0.41% at K=15.",
+      "source": "reproduce.reproduce(table=5) resistive row, validate V(out) vs bundled rectifier_halfwave.raw at K=15."
+    },
+    "rectifier_table5_rcmild_nrmse_K30": {
+      "value": 0.001339742811682331,
+      "rtol": 0.3,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table V row 2: RC mild (10uF), NRMSE vs LTspice 0.13% at K=30.",
+      "source": "reproduce.reproduce(table=5) RC-mild row, validate V(out) vs bundled rectifier_rc_mild.raw at K=30."
+    },
+    "rectifier_table5_rcstrong_nrmse_K40": {
+      "value": 0.0013746842292035903,
+      "rtol": 0.3,
+      "atol": 0.0005,
+      "requires_ngspice": false,
+      "paper": "Table V row 3: RC strong (100uF) headline DCM case, NRMSE vs LTspice 0.14% at K=40.",
+      "source": "reproduce.reproduce(table=5) RC-strong row, validate V(out) vs bundled rectifier_rc.raw at K=40."
     },
     "rlc_nrmse_vs_ngspice": {
       "value": 5.536840872227976e-06,
@@ -108,7 +132,7 @@
       "rtol": 0.5,
       "atol": 5e-05,
       "requires_ngspice": true,
-      "paper": "Tightly-coupled (k=0.9) magnetics; paper Table 2 reports ~0.54% vs LTspice.",
+      "paper": "Tightly-coupled (k=0.9) magnetics; paper Sec. III-E / Fig. 8 reports ~0.54% vs LTspice.",
       "source": "validate coupled-inductor pair k=0.9 against auto ngspice run, worst node NRMSE."
     },
     "wpt_k0.2_nrmse_vs_ngspice": {
@@ -116,7 +140,7 @@
       "rtol": 0.5,
       "atol": 5e-05,
       "requires_ngspice": true,
-      "paper": "Series-series WPT link k=0.2; paper Table 2 reports ~2.87% vs LTspice.",
+      "paper": "Series-series WPT link k=0.2; paper Sec. III-E / Fig. 8 reports ~2.87% vs LTspice.",
       "source": "validate WPT link (general SVD reduction path) against auto ngspice run, worst node NRMSE."
     }
   }

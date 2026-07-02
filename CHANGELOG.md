@@ -4,7 +4,7 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.5] - 2026-07-03
 
 ### Added
 
@@ -17,6 +17,36 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   rather than fabricating one. Motivation: envelope figures (e.g. the
   dpspice.com hero plot) are now reproducible from the public CLI instead of
   reaching into `dpspice._engine`.
+
+### Changed
+
+- **`dpspice reproduce` flags renumbered to the paper's final (v10) numbering.**
+  Rectifier accuracy moved `--table 4` -> `--table 5` (Table V), the rectifier
+  waveform moved `--figure 5` -> `--figure 6` (Fig. 6), and the external
+  IEEE-network timing entry moved `--table 5` -> `--table 4` (Table IV). The
+  computational benchmark stays `--table 3` (Table III). The stale external
+  `--table 1` / `--table 2` stubs were removed: the RLC accuracy is paper
+  Sec. III-A (with the offline IDP-vs-TD accuracy carried as Table II inside
+  `--table 3`), and the coupled/WPT accuracy is Sec. III-E / Fig. 8 — reached
+  via `dpspice validate` with your own `.raw`, not a numbered `reproduce` target.
+  Values and golden references are unchanged; only the flag numbers and labels
+  moved to track the camera-ready paper.
+
+### Fixed
+
+- **`dpspice reproduce --table 5` and `--figure 6` now run the paper's three
+  rectifier loads, not one.** Both targets previously resolved every Table V row
+  to the resistive half-wave deck (`rectifier_halfwave.sp`) and reported a single
+  NRMSE, so the reproduced table looked as though it disagreed with the paper.
+  Table V now solves each load at the harmonic count its conduction pulse needs
+  (resistive K=15, RC mild 10uF K=30, RC strong 100uF K=40) and cross-checks each
+  against its own bundled LTspice `.raw`. Figure 6 now draws the cap-smoothed
+  `rectifier_rc.sp` waveform rather than the resistive deck. The regenerated
+  NRMSE-vs-LTspice values are 0.409%, 0.134%, and 0.137%, matching the paper's
+  reported 0.41%, 0.13%, and 0.14%. Two bundled references
+  (`rectifier_rc.raw`, `rectifier_rc_mild.raw`) and one deck
+  (`rectifier_rc_mild.sp`) now ship with the package, and three golden entries
+  freeze the per-row NRMSE so the target cannot silently revert to a single load.
 
 ## [1.0.4] - 2026-07-01
 
@@ -42,6 +72,7 @@ what the engine produced in 1.0.3. This pass is about how those results read.
   "corresponds to the paper" note in each header. Outputs re-committed; the
   numbers are unchanged.
 
+[1.0.5]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.5
 [1.0.4]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.4
 
 ## [1.0.3] - 2026-06-30

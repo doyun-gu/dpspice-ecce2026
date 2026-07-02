@@ -27,7 +27,8 @@ def test_examples_are_packaged_resources():
     """The example files must be discoverable as packaged resources."""
     names = set(dpspice.list_examples())
     assert {"rlc.sp", "rectifier_halfwave.sp", "rectifier_rc.sp",
-            "rectifier_halfwave.raw"} <= names
+            "rectifier_rc_mild.sp", "rectifier_halfwave.raw",
+            "rectifier_rc.raw", "rectifier_rc_mild.raw"} <= names
     # And the resource really resolves under the installed package.
     res = resources.files("dpspice").joinpath("data", "examples", "rlc.sp")
     assert res.is_file()
@@ -52,13 +53,16 @@ def test_bench_runs_from_foreign_cwd(tmp_path, monkeypatch):
 
 
 def test_reproduce_table_and_figure_run_from_foreign_cwd(tmp_path, monkeypatch):
-    """``reproduce --table 3/4`` and ``--figure 5`` must resolve bundled data
+    """``reproduce --table 3/5`` and ``--figure 6`` must resolve bundled data
     via package resources, not the source tree."""
     monkeypatch.chdir(tmp_path)
     t3 = reproduce.reproduce(table=3)
     assert t3["rows"] and "idp_vs_td_duration_sweep" in t3
-    t4 = reproduce.reproduce(table=4)
-    assert t4["reference"] == "rectifier_halfwave.raw"
-    assert t4["worst_nrmse"] >= 0.0
-    f5 = reproduce.reproduce(figure=5)
-    assert f5["waveforms"]
+    t5 = reproduce.reproduce(table=5)
+    assert len(t5["rows"]) == 3
+    assert {r["reference"] for r in t5["rows"]} == {
+        "rectifier_halfwave.raw", "rectifier_rc_mild.raw", "rectifier_rc.raw"}
+    assert t5["worst_nrmse"] >= 0.0
+    f6 = reproduce.reproduce(figure=6)
+    assert f6["waveforms"]
+    assert f6["reference"] == "rectifier_rc.sp"

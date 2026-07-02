@@ -18,8 +18,8 @@ The repository ships everything needed to reproduce the **offline** artifacts:
 the example netlists and the LTspice `.raw` references they validate against
 (both as package data, accessed via `importlib.resources`). It does **not**
 redistribute the paper's full external reference set — the LTspice Q-sweep
-references (Table 1), the WPT link reference (Table 2), or the IEEE network case
-files (Table 5). Artifacts that depend on those are marked "No" in the
+references (Sec. III-A), the WPT / coupled-link references (Sec. III-E, Fig. 8),
+or the IEEE network case files (Table IV). Artifacts that depend on those are marked "No" in the
 reproducibility column below and are listed by `dpspice reproduce` with a note
 on the external data they need, rather than shipped as fabricated numbers. To
 reproduce them, point `dpspice validate --ref` at your own `.raw` / case files.
@@ -29,9 +29,9 @@ reproduce them, point `dpspice validate --ref` at your own `.raw` / case files.
 ```bash
 pip install -e .[dev]           # core + CLI + MCP + test suite
 # ngspice is an external binary (not a pip extra): brew install ngspice
-dpspice reproduce --table 3     # benchmark: state counts, solver choice, timings
-dpspice reproduce --table 4     # rectifier accuracy vs bundled LTspice reference
-dpspice reproduce --figure 5    # rectifier waveform samples
+dpspice reproduce --table 3     # benchmark: state counts, solver choice, timings (Table III)
+dpspice reproduce --table 5     # rectifier accuracy vs bundled LTspice reference (Table V)
+dpspice reproduce --figure 6    # rectifier waveform samples (Fig. 6)
 pytest -q                       # golden regression + determinism + error suite
 ```
 
@@ -44,16 +44,16 @@ re-freeze path (`pytest tests/test_golden.py --update-golden`).
 
 | Paper artifact | Command | Expected (this repo) | Reproducible offline? |
 |---|---|---|---|
-| Table 3 — computational benchmark + per-duration IDP-vs-TD accuracy/speedup | `dpspice reproduce --table 3` | linear cases -> `td`/`idp`; rectifier cases -> `hb`, K=20, states=3. Plus `idp_vs_td_duration_sweep`: per-window NRMSE/R^2 and speedup (12/50/200 cycles). Timings machine-dependent (reported, not asserted); NRMSE/R^2 and speedup *trend* are frozen. | Yes |
+| Table III — computational benchmark + per-duration IDP-vs-TD accuracy/speedup (Table II) | `dpspice reproduce --table 3` | linear cases -> `td`/`idp`; rectifier cases -> `hb`, K=20, states=3. Plus `idp_vs_td_duration_sweep`: per-window NRMSE/R^2 and speedup (12/50/200 cycles). Timings machine-dependent (reported, not asserted); NRMSE/R^2 and speedup *trend* are frozen. | Yes |
 | IEEE-network speedup envelope (23-57x / 224-566x at T=1s/10s) | (needs IEEE case files) | not redistributed. The bundled RLC duration sweep reproduces the same *trend* (~tenfold per decade); see discrepancy below. | No — bring IEEE cases; RLC sweep is the offline proxy |
-| Table 4 — rectifier accuracy vs LTspice | `dpspice reproduce --table 4` | `worst_nrmse = 2.063e-3`, `min_r2 = 0.99997` against the bundled `examples/rectifier_halfwave.raw` | Yes (reference bundled) |
-| Figure 5 — rectifier waveform | `dpspice reproduce --figure 5` | HB reconstructed V(out) samples (waveform JSON) | Yes |
+| Table V — rectifier accuracy vs LTspice | `dpspice reproduce --table 5` | `worst_nrmse = 2.063e-3`, `min_r2 = 0.99997` against the bundled `examples/rectifier_halfwave.raw` | Yes (reference bundled) |
+| Figure 6 — rectifier waveform | `dpspice reproduce --figure 6` | HB reconstructed V(out) samples (waveform JSON) | Yes |
 | Rectifier accuracy at K=40 | `dpspice validate examples/rectifier_halfwave.sp --ref examples/rectifier_halfwave.raw --harmonics 40` | `worst_nrmse = 5.966e-4` | Yes (reference bundled) |
 | Conduction angle vs smoothing cap | `dpspice run examples/rectifier_*.sp` (summary field) | half-wave 173.7 deg, C=10uF 100.5 deg, C=100uF 47.1 deg | Yes |
-| IDP single-shift vs full TD (series RLC) | `dpspice run rlc.sp --mode idp` vs `--mode td` | NRMSE 6.5e-5, R^2 0.99999994 at 580 krad/s | Yes |
-| Table 1 — RLC Q-sweep accuracy | `dpspice validate <your>.sp` | needs the original LTspice reference set (not redistributed) | No — bring your own `.raw` |
-| Table 2 — WPT k=0.2 link accuracy | `dpspice validate <wpt>.sp` (auto ngspice) | vs ngspice: NRMSE 6.2e-5 (see discrepancy WPT below) | Partial — ngspice differs from paper's LTspice reference |
-| Table 5 — IEEE-network timing | (needs IEEE case files) | not redistributed; validation suite has a steady-state smoke test | No |
+| Table II — IDP single-shift vs full TD (series RLC) | `dpspice run rlc.sp --mode idp` vs `--mode td` | NRMSE 6.5e-5, R^2 0.99999994 at 580 krad/s | Yes |
+| Sec. III-A — RLC Q-sweep accuracy | `dpspice validate <your>.sp` | needs the original LTspice reference set (not redistributed) | No — bring your own `.raw` |
+| Sec. III-E / Fig. 8 — WPT k=0.2 link accuracy | `dpspice validate <wpt>.sp` (auto ngspice) | vs ngspice: NRMSE 6.2e-5 (see discrepancy WPT below) | Partial — ngspice differs from paper's LTspice reference |
+| Table IV — IEEE-network timing | (needs IEEE case files) | not redistributed; validation suite has a steady-state smoke test | No |
 
 ## Determinism contract
 
@@ -73,8 +73,8 @@ a footnote). See `PAPER_CODE_MISMATCHES.md` for the consolidated list.
 
 | Quantity | Paper text | This repo | Direction | Likely cause |
 |---|---|---|---|---|
-| WPT k=0.2 link accuracy (Table 2) | ~2.87% NRMSE vs LTspice | 6.2e-3 % (6.2e-5) vs ngspice | repo far tighter | Different reference tool (ngspice auto-run, fine step) than the paper's LTspice set; general SVD reduction now solves WPT cleanly |
-| Coupled k=0.9 accuracy (Table 2) | ~0.54% NRMSE vs LTspice | 1.3e-4 % (1.3e-6) vs ngspice | repo far tighter | Same reference-tool / step difference |
+| WPT k=0.2 link accuracy (Sec. III-E / Fig. 8) | ~2.87% NRMSE vs LTspice | 6.2e-3 % (6.2e-5) vs ngspice | repo far tighter | Different reference tool (ngspice auto-run, fine step) than the paper's LTspice set; general SVD reduction now solves WPT cleanly |
+| Coupled k=0.9 accuracy (Sec. III-E / Fig. 8) | ~0.54% NRMSE vs LTspice | 1.3e-4 % (1.3e-6) vs ngspice | repo far tighter | Same reference-tool / step difference |
 | IDP single-shift vs full TD | < 1e-6 % | 6.5e-3 % (6.5e-5) | repo looser than paper | Paper likely reports a pointwise/relative error; repo reports NRMSE (RMSE / peak-to-peak) on an aligned grid |
 | Rectifier accuracy at K=40 | 0.14% | 0.06% (5.97e-4) | repo tighter | Bundled LTspice reference + finer HB reconstruction |
 | Conduction angles | 175 / 102 / 48 deg | 173.7 / 100.5 / 47.1 deg | **match** (within grid quantization 0.7 deg) | none — consistent |

@@ -113,44 +113,77 @@ def duration_sweep(periods=(12, 50, 200)) -> List[Dict]:
 
 def _table_benchmark() -> Dict:
     return {
-        "label": "Table: computational benchmark (bundled examples)",
+        "label": "Table III: computational benchmark (bundled examples)",
         "kind": "table",
         "rows": bench(),
         # Per-duration accuracy + speedup (IDP vs full TD on the RLC case). This
         # is the offline-reproducible analog of the paper's per-duration speedup
-        # envelope; the IEEE-network figures themselves need external case files
-        # (see Table 5 / REPRODUCIBILITY.md).
+        # envelope and carries the Table II (IDP-vs-TD accuracy) content; the
+        # IEEE-network figures themselves need external case files
+        # (see Table IV / REPRODUCIBILITY.md).
         "idp_vs_td_duration_sweep": duration_sweep(),
         "note": "Solve times are machine-dependent; state counts, solver "
                 "selection, NRMSE/R^2 and the speedup *trend* are deterministic.",
     }
 
 
+# Table V, row by row. Each rectifier load enters discontinuous conduction to a
+# different degree, so each needs the harmonic count its conduction pulse demands
+# (the paper reports per-row K, not one global K): the smooth resistive load
+# converges at K=15, the mild RC ripple at K=30, the strong DCM headline case at
+# K=40. Every row solves a bundled netlist and cross-checks against a bundled
+# LTspice ``.raw`` from the same deck. Nothing here is hard-coded.
+RECTIFIER_CASES = [
+    ("resistive", None, "rectifier_halfwave.sp", "rectifier_halfwave.raw", 15),
+    ("RC, mild", "10uF", "rectifier_rc_mild.sp", "rectifier_rc_mild.raw", 30),
+    ("RC, strong", "100uF", "rectifier_rc.sp", "rectifier_rc.raw", 40),
+]
+
+
 def _table_accuracy() -> Dict:
-    """Accuracy vs the bundled LTspice rectifier reference (real validate run)."""
-    netlist = example_text("rectifier_halfwave.sp")
-    with example_path("rectifier_halfwave.raw") as raw:
-        report = _validate.validate(netlist, raw)
+    """Reproduce all three Table V rows from real solves + bundled LTspice refs.
+
+    For each load the row carries the solved conduction angle (from the HB
+    summary, no external data needed) and the NRMSE / R^2 / dc output against the
+    bundled LTspice reference for that exact deck. ``worst_nrmse`` is the
+    poorest row, so a single number still guards the whole table in regression.
+    """
+    rows: List[Dict] = []
+    for case, cap, sp_name, raw_name, K in RECTIFIER_CASES:
+        netlist = example_text(sp_name)
+        run = dispatch.run(netlist, harmonics=K, with_waveforms=False)
+        with example_path(raw_name) as raw:
+            report = _validate.validate(netlist, raw, harmonics=K)
+        out = next(p for p in report["per_node"] if p["node"].lower() == "out")
+        rows.append({
+            "case": case,
+            "C": cap,
+            "K": K,
+            "reference": raw_name,
+            "conduction_angle_deg": run.summary.get("conduction_angle_deg"),
+            "nrmse_vs_ltspice": out["nrmse"],
+            "r2": out["r2"],
+            "vdc_ltspice": out["dc_ref"],
+            "vdc_hb": out["dc_test"],
+        })
     return {
-        "label": "Table: accuracy vs LTspice (half-wave rectifier)",
+        "label": "Table V: accuracy vs LTspice (half-wave rectifier, three loads)",
         "kind": "table",
-        "reference": "rectifier_halfwave.raw",
-        "solver": report["solver"],
-        "K": report.get("K"),
-        "per_node": report["per_node"],
-        "worst_nrmse": report["worst_nrmse"],
-        "min_r2": report["min_r2"],
+        "rows": rows,
+        "worst_nrmse": max(r["nrmse_vs_ltspice"] for r in rows),
     }
 
 
 def _figure_rectifier_waveform() -> Dict:
-    """Half-wave rectifier output waveform from the real HB solve."""
-    netlist = example_text("rectifier_halfwave.sp")
-    result = dispatch.run(netlist, with_waveforms=True)
+    """Fig. 6 waveforms: the capacitor-smoothed (RC-strong, C=100 uF) rectifier
+    in discontinuous conduction, from the real HB solve at the paper's K=40."""
+    netlist = example_text("rectifier_rc.sp")
+    result = dispatch.run(netlist, harmonics=40, with_waveforms=True)
     waves = [{"name": w.name, "t": w.t, "v": w.v} for w in result.waveforms]
     return {
-        "label": "Figure: half-wave rectifier waveforms (harmonic balance)",
+        "label": "Figure 6: capacitor-smoothed rectifier waveforms (harmonic balance)",
         "kind": "figure",
+        "reference": "rectifier_rc.sp",
         "solver": result.solver,
         "K": result.K,
         "conduction_angle_deg": result.summary.get("conduction_angle_deg"),
@@ -159,21 +192,23 @@ def _figure_rectifier_waveform() -> Dict:
 
 
 # Registry maps a (kind, number) to a builder. Numbers follow the paper's
-# numbering; entries marked external need data not redistributed in this repo.
+# final (v10) numbering; entries marked external need data not redistributed in
+# this repo. v10 numbering: Table III = computational benchmark, Table IV = IEEE
+# network timing, Table V = rectifier accuracy vs LTspice, Fig. 6 = rectifier
+# output waveform. (The RLC accuracy vs LTspice lives in paper Sec. III-A and the
+# offline IDP-vs-TD accuracy is Table II, carried inside --table 3 below; the
+# coupled/WPT accuracy is Sec. III-E / Fig. 8. Neither is a redistributable
+# numbered artifact, so both are reached via `dpspice validate` with your .raw.)
 _REGISTRY = {
-    ("table", 3): ("Computational benchmark", _table_benchmark),
-    ("table", 4): ("Accuracy vs LTspice (rectifier)", _table_accuracy),
-    ("figure", 5): ("Rectifier output waveform", _figure_rectifier_waveform),
+    ("table", 3): ("Computational benchmark (Table III)", _table_benchmark),
+    ("table", 5): ("Accuracy vs LTspice (rectifier, Table V)", _table_accuracy),
+    ("figure", 6): ("Rectifier output waveform (Fig. 6)", _figure_rectifier_waveform),
 }
 
 # Documented but not redistributable from this repo (no fabrication).
 _EXTERNAL = {
-    ("table", 1): "RLC Q-sweep NRMSE — needs the full LTspice reference set "
-                  "(not redistributed). Use `dpspice validate` with your own .raw.",
-    ("table", 2): "WPT k=0.2 link accuracy — needs the coupled-link LTspice "
-                  "reference (not redistributed).",
-    ("table", 5): "IEEE-network timing tables — needs the IEEE case files; "
-                  "see the validation suite for a steady-state smoke test.",
+    ("table", 4): "IEEE-network timing tables (Table IV) — needs the IEEE case "
+                  "files; see the validation suite for a steady-state smoke test.",
 }
 
 

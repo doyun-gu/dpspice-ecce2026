@@ -31,7 +31,7 @@ manage), then run a bundled example:
 pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git"
 
 # 2. Confirm it is on your PATH
-dpspice --version          # -> 1.0.4
+dpspice --version          # -> 1.0.5
 
 # 3. Inspect a circuit (what will it decide?) ...
 dpspice info  examples/rlc.sp
@@ -190,9 +190,9 @@ nothing is hard-coded.
 
 ```bash
 dpspice reproduce                 # list what can be reproduced here
-dpspice reproduce --table 3       # computational benchmark
-dpspice reproduce --table 4       # accuracy vs LTspice (rectifier)
-dpspice reproduce --figure 5      # rectifier output waveform
+dpspice reproduce --table 3       # computational benchmark (Table III)
+dpspice reproduce --table 5       # accuracy vs LTspice (rectifier, Table V)
+dpspice reproduce --figure 6      # rectifier output waveform (Fig. 6)
 dpspice validate examples/rectifier_halfwave.sp \
     --ref examples/rectifier_halfwave.raw
 ```
@@ -279,7 +279,7 @@ always resolves to the latest archived version.
   author    = {Gu, Doyun and Zhang, Cheng},
   title     = {{DPSpice}: Topology-Independent Dynamic-Phasor Circuit Simulation},
   publisher = {Zenodo},
-  version   = {v1.0.4},
+  version   = {v1.0.5},
   doi       = {10.5281/zenodo.21085058},
   url       = {https://doi.org/10.5281/zenodo.21085058},
   year      = {2026}

@@ -30,12 +30,27 @@ from the public adaptive API on 2026-06-30 (Python backend, ngspice 45.2).
    steady-state error. A revision should confirm which metric the paper
    sentence refers to and align the wording.
 
-4. **Rectifier accuracy at K=40 — paper 0.14%, repo 0.06%.**
-   Repo is tighter, against the bundled LTspice reference. Minor; likely a finer
-   HB reconstruction or a different K/step in the paper run.
+4. **Table V rectifier accuracy, RESOLVED.** Paper 0.41/0.13/0.14%; repo now
+   0.409/0.134/0.137% for the resistive, RC-mild (10uF) and RC-strong (100uF)
+   loads. An earlier revision of `reproduce --table 5` wired all three rows to
+   the resistive half-wave deck and reported a single 0.06% (K=40) number, which
+   made the table look as if it disagreed with the paper. `reproduce --table 5`
+   now solves each load at the harmonic count its conduction pulse needs (K=15
+   resistive, K=30 mild, K=40 strong) and cross-checks each against its own
+   bundled LTspice `.raw`. All three rows reproduce within rounding, and the
+   RC-strong dc output matches LTspice to four significant figures (4.218 V). No
+   paper change needed.
 
-5. **Conduction angles — MATCH.** Paper 175/102/48 deg; repo 173.7/100.5/47.1
-   deg, within the 0.7 deg phase-grid quantization. No action.
+5. **Conduction angles, two of three match, resistive is ~2 deg low.** Paper
+   175/102/48 deg. At the per-row Table V harmonic counts the repo gives
+   173.0/102.0/47.5 deg. The RC-mild and RC-strong values match the paper within
+   rounding. The resistive load reads about 2 deg below the paper's 175 deg
+   because a real Shockley diode (Is=1e-9) carries a small forward drop, so it
+   stops conducting just before the ideal 180 deg half-wave point, and the angle
+   is further quantised by the phase grid. The paper rounds this smooth case to
+   175 deg. The gap is cosmetic and affects only the resistive sanity row, not
+   the headline discontinuous-conduction result. A revision may either footnote
+   the diode-drop rounding or print 173 deg.
 
 6. **IDP-vs-TD accuracy is horizon-dependent, not flat.** The paper states the
    IDP single-shift matches full TD to "< 1e-6 %", read as a single horizon-
