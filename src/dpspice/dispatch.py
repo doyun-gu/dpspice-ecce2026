@@ -581,7 +581,7 @@ def _harmonic_table(result, node: str) -> list:
 
 def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                   decisions, warnings, with_waveforms, with_envelopes,
-                  horizon_s, dt_s) -> RunResult:
+                  horizon_s, dt_s, bias_correction=False) -> RunResult:
     """LTP / hybrid / envelope solve of a routed switched netlist."""
     from .switching import (RoutingError, SwitchedHBNet, assemble_bank,
                             integrate, reconstruct, route_netlist, solve_ltp,
@@ -625,6 +625,11 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
     routing_rows = [r.to_dict() for r in rt.rows]
 
     if mode_sel == "envelope":
+        if bias_correction:
+            warnings.append(
+                "--bias-correction: the closed-form tail correction applies "
+                "to the periodic steady state (LTP path); ignored for the "
+                "envelope transient.")
         if rt.diodes:
             names = ", ".join(d.name for d in rt.diodes)
             raise DpspiceError(
@@ -708,6 +713,13 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
             "IDP solver only; use --analysis envelope for the switched bank.")
     t0 = time.perf_counter()
     if rt.diodes:
+        if bias_correction:
+            names = ", ".join(d.name for d in rt.diodes)
+            raise DpspiceError(
+                f"--bias-correction is derived for the gated-switch LTP path; "
+                f"diode(s) ({names}) route this netlist to the hybrid NR-HB "
+                f"solver, whose truncation defect is not the closed-form gate "
+                f"tail. Drop the flag or the diode(s).")
         swnet = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
         diode_objs = []
         for d in rt.diodes:
@@ -721,8 +733,17 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                 f"(residual {result.residual:.2e}). Increase --harmonics or --tol.")
     else:
         swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
-        result = solve_ltp(swnet, f_sw, K)
-        solver = "ltp"
+        result = solve_ltp(swnet, f_sw, K, bias_correction=bias_correction)
+        solver = result.route            # "ltp", or "ltp+bias" when corrected
+        if bias_correction:
+            decisions.append(Decision(
+                "bias_correction", True, "override",
+                f"closed-form O(1/K) gate-tail defect embedded at k=0, "
+                f"fixed point in {result.iters} iteration(s)"))
+            if not result.converged:
+                raise DpspiceError(
+                    f"Bias-correction fixed point did not converge at K={K} "
+                    f"(residual {result.residual:.2e}).")
     dt_solve = time.perf_counter() - t0
 
     node_summary = {}
@@ -767,7 +788,8 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
         omega_hz: Optional[float] = None, tol: Optional[float] = None,
         with_waveforms: bool = True, with_envelopes: bool = False,
         horizon_s: Optional[float] = None,
-        dt_s: Optional[float] = None) -> RunResult:
+        dt_s: Optional[float] = None,
+        bias_correction: bool = False) -> RunResult:
     """Parse, auto-decide, simulate. The one-call entry point."""
     netlist_str = read_netlist(source)
     netlist = parse_ltspice_netlist(netlist_str)
@@ -797,7 +819,12 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
     if switches or mode_sel == "envelope":
         return _run_switched(netlist_str, netlist, mode_sel, f0, harmonics,
                              tol, decisions, warnings, with_waveforms,
-                             with_envelopes, horizon_s, dt_s)
+                             with_envelopes, horizon_s, dt_s,
+                             bias_correction=bias_correction)
+    if bias_correction:
+        raise DpspiceError(
+            "--bias-correction corrects the gated-switch LTP steady state; "
+            "this netlist has no gated switch (S) elements.")
 
     # The transient modes need a simulation window; reject early with a clear
     # message instead of letting the engine raise a bare ValueError mid-solve.

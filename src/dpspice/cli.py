@@ -202,6 +202,12 @@ def run(
     dt: Optional[str] = typer.Option(
         None, "--dt",
         help="Envelope transient step in seconds (SPICE suffixes ok)."),
+    bias_correction: bool = typer.Option(
+        False, "--bias-correction",
+        help="Apply the closed-form O(1/K) truncation-tail correction on the "
+             "gated-switch LTP path (validation/bias_closed_form.md). "
+             "Steady-state hb analysis of switch-only netlists; off by "
+             "default so results match the plain truncated solve."),
     envelope: bool = typer.Option(
         False, "--envelope",
         help="Include the phasor-magnitude envelope |X(t)| the IDP solver "
@@ -230,11 +236,13 @@ def run(
             err.print(Text(f"  ✓ {preview.reason}", style="green"))
             with err.status(f"[cyan]Solving ({preview.mode_selected.upper()})…", spinner="dots"):
                 result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
-                                 with_envelopes=envelope, horizon=horizon, dt=dt)
+                                 with_envelopes=envelope, horizon=horizon, dt=dt,
+                                 bias_correction=bias_correction)
             err.print(Text(f"  ✓ Solved in {result.solve_time*1000:.1f} ms", style="green"))
         else:
             result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
-                             with_envelopes=envelope, horizon=horizon, dt=dt)
+                             with_envelopes=envelope, horizon=horizon, dt=dt,
+                             bias_correction=bias_correction)
     except DpspiceError as exc:
         _fail(exc)
 

@@ -407,3 +407,76 @@ def test_warm_start_falls_back_to_cold_on_stiff_diode():
     assert cold.converged and warm.converged
     scale = np.max(np.abs(cold.Xn))
     assert np.max(np.abs(warm.Xn - cold.Xn)) / scale < 1e-6
+
+
+# ----------------------------------------------------------------------
+# 7. Closed-form O(1/K) bias correction (validation/bias_closed_form.md)
+# ----------------------------------------------------------------------
+
+BOOST_D06 = """* synchronous boost, d = 0.6: truncation-biased output node
+Vin vin 0 12
+L1 vin sw 100u
+S1 sw 0 g 0 SWMOD
+S2 sw out gb 0 SWMOD
+C1 out 0 100u
+Rl out 0 20
+Vg  g  0 PULSE(0 1 0 0 0 12u 20u)
+Vgb gb 0 PULSE(1 0 0 0 0 12u 20u)
+.model SWMOD SW(Ron=20m Roff=1Meg Vt=0.5)
+.tran 0 5m
+.end
+"""
+
+
+def _out_dc(netl, K, corrected=False):
+    res = dpspice.solve_hb(netl, K=K, bias_correction=corrected)
+    assert res.converged
+    return res.summary["harmonics"]["out"][0]["re"]
+
+
+def test_bias_correction_removes_first_order_error():
+    """The corrected DC must sit an order of magnitude closer to the K -> inf
+    limit than the plain truncated solve. The reference is a Richardson limit
+    from the two finest grids (no hard-coded constants); the correction
+    predicts >= 90% of the true bias in the prototype sweeps, so <= 15%
+    residual is a loose bound at K = 10 where the plain error is ~6%."""
+    ref = 2 * _out_dc(BOOST_D06, 80) - _out_dc(BOOST_D06, 40)
+    plain = _out_dc(BOOST_D06, 10)
+    corr = _out_dc(BOOST_D06, 10, corrected=True)
+    assert abs(corr - ref) < 0.15 * abs(plain - ref), (plain, corr, ref)
+
+
+def test_bias_correction_buck_is_structural_zero():
+    """Complementary switches sharing the switched node have cancelling
+    gate-spectrum tails (the residual defect lands on the stiff source node
+    and ground), so the correction must leave the buck unchanged to solver
+    precision -- not merely be small."""
+    plain = dpspice.solve_hb(BUCK, K=15)
+    corr = dpspice.solve_hb(BUCK, K=15, bias_correction=True)
+    v0 = plain.summary["harmonics"]["out"][0]["re"]
+    v1 = corr.summary["harmonics"]["out"][0]["re"]
+    assert abs(v1 - v0) < 1e-12 * max(1.0, abs(v0))
+    assert corr.solver == "ltp+bias"
+
+
+def test_bias_correction_default_off_and_labelled():
+    """Off by default (plain LTP route, unchanged results); on, the solver
+    label carries the correction so downstream tables are honest about it."""
+    plain = dpspice.solve_hb(BOOST_D06, K=15)
+    assert plain.solver == "ltp"
+    corr = dpspice.solve_hb(BOOST_D06, K=15, bias_correction=True)
+    assert corr.solver == "ltp+bias"
+    assert corr.summary["harmonics"]["out"][0]["re"] > \
+        plain.summary["harmonics"]["out"][0]["re"]   # boost is biased low
+
+
+def test_bias_correction_refuses_unsupported_paths():
+    """The derivation covers the gated-switch LTP path only: diodes route to
+    hybrid NR-HB (different truncation defect) and pure linear netlists have
+    no gate tail. Both must refuse loudly, not silently ignore the flag."""
+    with pytest.raises(DpspiceError, match="hybrid"):
+        dpspice.solve_hb(dpspice.example_text("boost_async.sp"),
+                         K=15, bias_correction=True)
+    with pytest.raises(DpspiceError, match="no gated switch"):
+        dpspice.run("Vs in 0 SINE(0 1 50)\nR1 in out 1k\nC1 out 0 1u\n"
+                    ".tran 0 100m\n.end", mode="hb", bias_correction=True)

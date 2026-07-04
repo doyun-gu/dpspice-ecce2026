@@ -47,3 +47,18 @@ def gate_samples(N: int, duty: float, phase: float,
     """g(t) sampled on the AFT grid t_i = i*T/N (hybrid-path convention)."""
     tg = np.arange(N) / N
     return np.where(np.mod(tg - phase, 1.0) < duty, g_on, g_off)
+
+
+def gate_tail(K: int, duty: float) -> float:
+    """Gate spectral power beyond harmonic K: 2 * sum_{m>K} |S_m|^2.
+
+    Closed form via Parseval (the unit gate has power ``duty``, DC power
+    ``duty**2``, so the full two-sided AC power is d(1-d)); the tail is the
+    total minus the retained finite sum. Decays as 1/(pi^2 K) and drives the
+    O(1/K) DC truncation bias of the LTP solve (see
+    ``validation/bias_closed_form.md``). Phase drops out: |S_m| is
+    phase-independent.
+    """
+    m = np.arange(1, K + 1, dtype=float)
+    retained = 2.0 * np.sum(np.sin(np.pi * m * duty) ** 2 / (np.pi * m) ** 2)
+    return float(duty * (1.0 - duty) - retained)

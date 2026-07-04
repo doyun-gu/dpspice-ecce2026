@@ -212,18 +212,22 @@ class Circuit:
             with_waveforms: bool = True,
             with_envelopes: bool = False,
             horizon: Optional[Union[Number, str]] = None,
-            dt: Optional[Union[Number, str]] = None) -> Result:
+            dt: Optional[Union[Number, str]] = None,
+            bias_correction: bool = False) -> Result:
         """Auto-decide and simulate. Returns a :class:`Result`.
 
         ``horizon`` and ``dt`` apply to the switched-linear envelope mode only
-        (seconds, SPICE suffixes accepted as strings).
+        (seconds, SPICE suffixes accepted as strings). ``bias_correction``
+        applies the closed-form O(1/K) truncation-tail correction on the
+        gated-switch LTP path (``validation/bias_closed_form.md``).
         """
         run = dispatch.run(self.netlist, mode=mode, harmonics=harmonics,
                            omega_hz=_coerce_omega(omega), tol=tol,
                            with_waveforms=with_waveforms,
                            with_envelopes=with_envelopes,
                            horizon_s=_coerce_seconds(horizon, "horizon"),
-                           dt_s=_coerce_seconds(dt, "dt"))
+                           dt_s=_coerce_seconds(dt, "dt"),
+                           bias_correction=bias_correction)
         return Result(run)
 
     # -- switched-linear routing ------------------------------------------
