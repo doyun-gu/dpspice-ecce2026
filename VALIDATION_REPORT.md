@@ -228,12 +228,26 @@ findings (Finding F2).
 - **boost_async snubber and convergence — PARTIALLY REFUTED.** The claim
   "converges O(1/K) toward 31.38 V" does not hold as stated. The snubbered
   circuit converges only at K=20; K∈{15,25,30,35,40} stall at residual 1e-7…1e-8
-  (loud failure). The **un-snubbered** circuit converges at more K (10,20,25,30)
-  and tracks the TD reference far better (K=30 → 31.44 V vs snubbered 32.68 V).
+  (loud failure). The **un-snubbered** circuit converges at more K (10,20,25,30).
   The snubber's real effect is a charge-injection operating-point shift, not a
-  convergence prerequisite. The DC value does trend toward 31.38 V as K rises,
-  but the Newton residual does not. Corrected in the README and the example
-  comment (Finding F2).
+  convergence prerequisite. Corrected in the README and the example comment
+  (Finding F2).
+- **The 31.38 V "un-snubbered TD reference" itself was wrong — Finding L2.**
+  The number appears nowhere in the repo outside this report and fails a
+  physics bound: a bare CCM boost cannot exceed the lossless
+  Vin/(1−d) = 30 V, and the diode drop puts it below that. Two independent
+  settled references now agree to ~6 mV: the in-repo switched-DAE TD solver
+  (`validation/td_boost_async.py`, trapezoidal + backward-Euler edge steps,
+  pnjlim Newton, drift <2 µV per 100 cycles) gives **29.315 V bare** and
+  **31.094 V snubbered**; LTspice 26 (settled 40 ms tail) gives 29.310 V and
+  31.088 V. The 31.38 V figure sits 0.29 V from the *snubbered* value and
+  2.07 V above the bare one — evidently a snubbered and/or unsettled TD run
+  quoted as un-snubbered. The hybrid solve's DC trend (32.43 V at K=20,
+  31.44 V at K=30, un-snubbered) extrapolates first-order in 1/K to ≈29.5 V,
+  i.e. toward the *correct* bare reference; the qualitative "trend toward
+  the TD reference" conclusion survives, aimed at 29.32 V rather than
+  31.38 V. The continuation-solver acceptance target is restated
+  accordingly.
 - **Documentation framing — FIXED.** O(1/K) now reads as a general LTP-path
   property at stiff switched nodes, duty-dependent, quoted at the filtered node.
 - **Warm-start X0 default — byte-identical to main.** Rectifier benchmark over
@@ -248,6 +262,7 @@ findings (Finding F2).
 | F3 | medium | Clamped warm start diverges on boost_async (converged=False); the exposed `solve_hybrid(use_warm_start=True)` could return a worse answer than default | Cold-start fallback when the warm Newton fails to converge; default path unchanged and byte-identical | `d5c82ab` |
 | F2 | medium | README understated the O(1/K) bias (duty-dependent, exceeds ripple at d≥0.7) and mis-framed the boost_async snubber as a convergence fix | Reworked limitations and the example comment; added parameter-independent O(1/K) regression test | `03b06d6`, `4f6f7d7` |
 | L1 | medium | LTspice decks drove gates with zero-slew PULSE sources (silently limited to Ton/10, ~10% duty stretch) and two decks sampled `.four` before settling | Re-authored all decks: 1 ns edges, ≥10 τ settling before the recorded tail, integer-period `.four`; results ingested in §2 | `b1be8cc` |
+| L2 | medium | The reported 31.38 V un-snubbered boost_async TD reference exceeds the 30 V lossless bound; it matches a snubbered/unsettled run | Settled references pinned by two independent methods: 29.315 V bare / 31.094 V snubbered (in-repo TD, `validation/td_boost_async.py`) vs 29.310 / 31.088 V (LTspice). §7 and the Task 2 acceptance target corrected | `7284430` |
 | — | info | Lanczos-σ smoothing evaluated as an O(1/K) mitigation | Rejected (worsens DC and ripple); documented here, not shipped | — |
 | — | pass | Rectifier solution byte-identical to main | none needed | — |
 
