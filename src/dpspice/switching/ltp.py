@@ -123,6 +123,16 @@ def solve_ltp(swnet: SwitchedHBNet, f_sw: float, K: int,
     defect come from the corrected solution (parameter-free; see
     ``validation/bias_closed_form.md``). The residual is then reported
     against the tail-augmented system the corrected solution satisfies.
+
+    The fixed point is contractive only in a bounded regime: its iteration
+    matrix scales with the switch conductance swing times the gate tail
+    times the circuit's defect response, so a stiff switched node at high
+    duty (low R*C*f_sw) can put the spectral radius above 1 at any
+    practical K and the iteration diverges rather than degrades. Failure
+    is reported as ``converged=False`` on the returned result and the
+    corrected values must not be used; the dispatch/CLI layer raises a
+    typed error instead of returning them. ``solve_ltp_richardson``
+    corrects the same defect without this restriction.
     """
     w0 = 2 * np.pi * f_sw
     Yb, ks = swnet.assemble_linear(w0, K)

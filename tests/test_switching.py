@@ -482,6 +482,40 @@ def test_bias_correction_refuses_unsupported_paths():
                     ".tran 0 100m\n.end", mode="hb", bias_correction=True)
 
 
+BOOST_STIFF_D08 = """* boost at R*C_out*f_sw = 0.1, d = 0.8: outside the
+* bias-correction contraction regime (exploration/basis-selection, F3)
+Vin vin 0 12
+L1 vin sw 100u
+S1 sw 0 g 0 SWMOD
+S2 sw out gb 0 SWMOD
+C1 out 0 0.1u
+Rl out 0 20
+Vg  g  0 PULSE(0 1 0 0 0 16u 20u)
+Vgb gb 0 PULSE(1 0 0 0 0 16u 20u)
+.model SWMOD SW(Ron=20m Roff=1Meg Vt=0.5)
+.tran 0 1m
+.end
+"""
+
+
+def test_bias_correction_divergence_is_loud_error():
+    """The correction is a fixed-point iteration that is contractive only in
+    a bounded regime; at low switched-node stiffness ratio and high duty its
+    spectral radius exceeds 1 and the iteration DIVERGES (residuals blow up
+    by orders of magnitude) rather than degrading gracefully. That must
+    surface as a loud typed error through dispatch/CLI -- never a silently
+    returned 'corrected' value -- and as converged=False at engine level."""
+    with pytest.raises(DpspiceError, match="did not converge"):
+        dpspice.solve_hb(BOOST_STIFF_D08, K=15, bias_correction=True)
+    rt = route_netlist(BOOST_STIFF_D08)
+    sw = SwitchedHBNet(rt.clean_netlist, rt.switches)
+    res = solve_ltp(sw, rt.f_sw, 15, bias_correction=True)
+    assert not res.converged
+    # the plain (uncorrected) solve on the same netlist stays available
+    plain = solve_ltp(sw, rt.f_sw, 15)
+    assert plain.converged and plain.route == "ltp"
+
+
 # ----------------------------------------------------------------------
 # 8. Richardson K-extrapolation (--richardson)
 # ----------------------------------------------------------------------

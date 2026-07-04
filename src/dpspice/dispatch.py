@@ -785,7 +785,11 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
             if not result.converged:
                 raise DpspiceError(
                     f"Bias-correction fixed point did not converge at K={K} "
-                    f"(residual {result.residual:.2e}).")
+                    f"(residual {result.residual:.2e}). The correction is "
+                    f"contractive only in a bounded regime; a stiff switched "
+                    f"node at high duty (low R*C*f_sw) can sit outside it at "
+                    f"any practical K. Use --richardson instead, or drop the "
+                    f"flag and raise --harmonics.")
     dt_solve = time.perf_counter() - t0
 
     node_summary = {}
