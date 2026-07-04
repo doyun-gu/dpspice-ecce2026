@@ -16,8 +16,8 @@ collection windows starting ≥10 settling time constants out, integer-period
 |---|---|---|
 | `boost_sync_d05_ccm.cir` | LTP | d=0.5 CCM, settled 40 ms tail |
 | `buck_sync_d03.cir` | LTP | no truncation bias at the output |
-| `boost_async_nom.cir` | hybrid | snubber included, 40 ms tail |
-| `boost_async_nosnub.cir` | hybrid | bare converter, pins the reference without the snubber's operating-point shift |
+| `boost_async_nom.cir` | hybrid | snubber included (matches `boost_async_snubber.sp`), 40 ms tail |
+| `boost_async_nosnub.cir` | hybrid | bare converter (matches `boost_async.sp`), pins the reference without the snubber's operating-point shift |
 | `hybrid_mix.cir` | hybrid | 50 Hz fundamental |
 
 ## Run each deck (batch)

@@ -9,8 +9,10 @@ fixed in separate commits, then the affected checks were re-run.
 GO for the hybrid diode path**, for merge to `main` after the camera-ready date.
 The LTP and envelope paths are exact and robust across the full matrix. The
 hybrid NR-HB (diode) path is correct where it converges and fails loudly where
-it does not, but its convergence is fragile in the harmonic count; it is now
-documented as such and should be labelled experimental. No paper-reproduction
+it does not; plain Newton is fragile in the harmonic count, and a source/Gmin
+continuation now closes every recorded stall (§7 table, 14/14 cells). The path
+should still be labelled experimental until the continuation has seen a wider
+circuit population. No paper-reproduction
 path is touched (verified by hash, below).
 
 ## Preconditions
@@ -271,6 +273,36 @@ findings (Finding F2).
   the TD reference" conclusion survives, aimed at 29.32 V rather than
   31.38 V. The continuation-solver acceptance target is restated
   accordingly.
+- **K-fragility of the hybrid path — CLOSED by Newton continuation (Task 2).**
+  `solve_hybrid` now engages geometric source stepping (10% → 100%,
+  warm-started, adaptive step-back) when plain Newton stalls, with a Gmin
+  ladder behind it. Cases plain Newton already solves never enter the new
+  code and are byte-identical (asserted in the suite). Full matrix, both
+  variants of the asynchronous boost, `tol` default:
+
+  | K | bare route | bare iters | bare DC (V) | snubbered route | snub iters | snub DC (V) |
+  |---|---|---|---|---|---|---|
+  | 10 | newton | 269 | 35.178 | newton | 269 | 35.247 |
+  | 15 | continuation (8 rungs, from α=0.025) | 869 | 33.370 | continuation (5 rungs) | 569 | 33.572 |
+  | 20 | newton | 269 | 32.431 | newton | 65 | 32.908 |
+  | 25 | continuation (7 rungs, from α=0.05) | 749 | 31.839 | continuation (5 rungs) | 569 | 32.798 |
+  | 30 | continuation (8 rungs) | 869 | 31.439 | continuation (5 rungs) | 569 | 32.684 |
+  | 35 | continuation (8 rungs) | 869 | 31.077 | continuation (5 rungs) | 569 | 32.274 |
+  | 40 | continuation (8 rungs) | 869 | 30.863 | continuation (7 rungs) | 383 | 31.999 |
+
+  All 14 cells converge (previously: snubbered K=20 only, bare
+  K∈{10,20,25,30}). Source stepping alone rescued every stall; the Gmin
+  ladder never engaged. Iteration counts include the failed plain attempt
+  (269 of them where it stalls) plus every continuation rung. The bare DC
+  is monotone toward the settled 29.315 V reference and now sits cleanly
+  in the 1/K regime: Richardson over the two finest grids gives 29.36 V,
+  50 mV from the TD value. The snubbered DC is also monotone toward its
+  31.094 V reference (0.91 V above at K=40) but is **not yet in the clean
+  1/K regime** — pairwise Richardson estimates still disagree (32.1 V from
+  K=25/30, 30.1 V from K=35/40), consistent with the snubber adding a fast
+  time constant whose harmonics resolve later. Non-convergence, if the
+  continuation is ever exhausted, still returns a loud error. The
+  experimental label on the hybrid path stays.
 - **Documentation framing — FIXED.** O(1/K) now reads as a general LTP-path
   property at stiff switched nodes, duty-dependent, quoted at the filtered node.
 - **Warm-start X0 default — byte-identical to main.** Rectifier benchmark over
@@ -294,11 +326,19 @@ example `03b06d6`.
 
 ## Residual risk for the merge decision
 
-The hybrid diode path is the only fragile surface. It is correct where it
-converges (verified against routed/direct assembly and the un-snubbered TD
-trend) and fails loudly otherwise, but a user cannot assume that raising `--K`
-refines a hybrid diode result. Before merge, the maintainer should decide
-whether to (a) label the hybrid path experimental in the public API, and (b)
-re-tune or drop the snubbered `boost_async` example, whose shipped DC (32.9 V at
-K=20) reflects the snubber's operating-point shift rather than the bare
-converter. Neither blocks the gated-switch LTP/envelope paths, which are ready.
+The hybrid diode path remains the least mature surface, but its two recorded
+risks have narrowed since this section was first written. (a) The K-fragility
+is closed operationally: the source/Gmin continuation converges every recorded
+stall (14/14 cells in the §7 table) and byte-identical behaviour on
+already-converging cases is asserted in the suite. What remains is that the
+continuation is only as validated as that matrix — the experimental label on
+the hybrid path stays until it has survived a wider circuit population. (b)
+The snubbered example's DC question is resolved rather than re-tuned: the
+32.9 V at K=20 is now known to be **mostly finite-K truncation bias, not the
+snubber's operating-point shift** (the settled snubbered reference is
+31.094 V, only 1.78 V above the bare 29.315 V; the remaining 1.8 V at K=20 is
+bias that decays with K). The shipped `boost_async.sp` is now the bare
+converter, with the snubbered variant kept as `boost_async_snubber.sp` and its
+operating-point shift documented in the netlist header. A hybrid DC at
+moderate K should still be quoted with a transient cross-check. None of this
+blocks the gated-switch LTP/envelope paths, which are ready.

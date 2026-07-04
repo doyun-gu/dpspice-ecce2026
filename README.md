@@ -210,8 +210,8 @@ route` exits nonzero when any element is refused.
   precision (asserted in the test suite).
 
 The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`,
-`buckboost_sync.sp` and `src_bridge.sp` (LTP and envelope), `boost_async.sp`
-and `hybrid_mix.sp` (hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
+`buckboost_sync.sp` and `src_bridge.sp` (LTP and envelope), `boost_async.sp`,
+`boost_async_snubber.sp` and `hybrid_mix.sp` (hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
 `dpspice.solve_hb(netlist, K=7)`, `dpspice.solve_envelope(netlist, K=5,
 horizon="2m")`.
 
@@ -236,19 +236,29 @@ the conduction drop). Quote accuracy at the filtered node of interest, not at
 the switched node, and raise K when the k = 0 value matters. This is a general
 property of the LTP path at stiff switched nodes, not specific to one example;
 switches that feed an inductor (the buck sync switch) do not carry it.
+Two opt-in mitigations ship for the LTP path: `--bias-correction` applies a
+closed-form, parameter-free correction of the O(1/K) gate-tail defect
+(derivation and validation in `validation/bias_closed_form.md`; structural
+zero on the buck, results labelled `ltp+bias`), and `--richardson` solves at
+K and 2K and extrapolates the shared harmonics (results labelled
+`ltp+richardson`, both solve times reported). They correct the same defect
+and are mutually exclusive.
 
 *Hard diode commutation is convergence-fragile.* When a diode commutates on a
 hard-switched node, the truncated switch node chatters across the junction
-threshold and the hybrid Newton residual does not decrease monotonically with
-K: a given circuit may converge at one harmonic count and stall at a
-neighbouring one. Non-convergence is reported as a loud error, never a silent
-wrong answer, but do not assume that raising `--K` refines a hybrid diode
-result. `boost_async.sp` converges at its shipped default (K = 20); it carries
-a 150 nF snubber that slows the switch-node transition, which also injects
-charge and raises V(out) above the unsnubbered operating point, so the snubber
-is a deliberate circuit modification and its DC differs from the bare
-converter. Validate any hybrid diode operating point against a transient
-reference.
+threshold and the plain hybrid Newton residual does not decrease monotonically
+with K: a given circuit may converge at one harmonic count and stall at a
+neighbouring one. When that happens the solver automatically engages Newton
+continuation — geometric source stepping from 10% amplitude with adaptive
+step-back, then SPICE-style Gmin stepping — and records the rungs it took in
+the run record; cases plain Newton already solves are unaffected. With the
+continuation, `boost_async.sp` (the bare converter) and
+`boost_async_snubber.sp` (a 150 nF snubber that deliberately shifts the
+operating point upward) both converge across K = 10…40, and the bare DC
+approaches the transient reference 29.315 V first-order in K from above.
+Total non-convergence is still reported as a loud error, never a silent wrong
+answer, and a hybrid DC at moderate K still carries finite-K bias: validate
+any hybrid diode operating point against a transient reference.
 
 ## Commands
 

@@ -34,8 +34,41 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `dpspice.solve_hb(netlist, K=...)` and
   `dpspice.solve_envelope(netlist, K=..., horizon=..., dt=...)`, returning
   the same `Result` objects as `run`.
-- **Examples**: `buck_sync.sp`, `boost_sync.sp`, `src_bridge.sp` (LTP and
-  envelope paths), `boost_async.sp`, `hybrid_mix.sp` (hybrid NR-HB path).
+- **Examples**: `buck_sync.sp`, `boost_sync.sp`, `buckboost_sync.sp`,
+  `src_bridge.sp` (LTP and envelope paths), `boost_async.sp` (bare),
+  `boost_async_snubber.sp` (documented operating-point shift) and
+  `hybrid_mix.sp` (hybrid NR-HB path).
+- **Closed-form O(1/K) truncation-bias correction for the LTP path**
+  (`--bias-correction`, `solve_ltp(..., bias_correction=True)`). The DC
+  defect of the truncated switch spectrum is derived in closed form from the
+  gate tail (exact finite Parseval form, no fitted constants), embedded at
+  k = 0 through the switch incidence, and iterated to a self-consistent
+  fixed point. Parameter-free; structural zero on the buck; results
+  labelled `ltp+bias`. Derivation and validation in
+  `validation/bias_closed_form.md`. Off by default; refused (loudly) on the
+  hybrid and non-switched paths where the derivation does not apply.
+- **Richardson K-extrapolation for the LTP path** (`--richardson`,
+  `solve_ltp_richardson`). Solves at K and 2K and returns 2·X₂ₖ − Xₖ on the
+  shared harmonics (fine-only harmonics unextrapolated and labelled in the
+  per-harmonic table); both solve times reported in the run record.
+  Mutually exclusive with `--bias-correction` (same defect, would
+  double-count).
+- **Newton continuation for the hybrid NR-HB path.** When plain Newton
+  stalls (the recorded K-fragility on hard diode commutation),
+  `solve_hybrid` engages geometric source stepping (10% → 100%,
+  warm-started, adaptive step-back) and, if needed, SPICE-style Gmin
+  stepping on the node-voltage diagonals. Cases plain Newton already solves
+  are byte-identical (asserted); continuation rungs and iteration counts
+  surface as a run `Decision`. Both asynchronous-boost variants now
+  converge at every K ∈ {10…40} (previously snubbered K=20 only). The
+  hybrid path remains labelled experimental.
+- **External validation campaign** (`VALIDATION_REPORT.md`,
+  `validation/`): LTspice cross-validation decks with settled tails and
+  finite gate edges (Finding L1), an in-repo switched-DAE transient
+  reference (`validation/td_boost_async.py`) that corrected the
+  asynchronous-boost TD reference to 29.315 V bare / 31.094 V snubbered
+  (Finding L2), and duty/frequency/K validity matrices re-run with the
+  shipped bias correction.
 
 ## [1.0.5] - 2026-07-03
 

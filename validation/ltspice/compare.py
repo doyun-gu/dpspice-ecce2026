@@ -31,10 +31,6 @@ from ltspice_io import read_raw as _read_raw_f64  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def _nosnub(text):
-    return text.replace("Csn sw 0 150n\n", "")
-
-
 # Each case: deck stem, fundamental Hz, probe node, K, and the dpspice netlist
 # for the SAME circuit the deck describes (duty/values matched to the .cir).
 CASES = [
@@ -65,9 +61,9 @@ Vgb gb 0 PULSE(1 0 0 0 0 6u 20u)
 .tran 0 2m
 .end"""),
     ("boost_async_nom", 50e3, "out", 20,
-     dpspice.example_text("boost_async.sp")),
+     dpspice.example_text("boost_async_snubber.sp")),
     ("boost_async_nosnub", 50e3, "out", 20,
-     _nosnub(dpspice.example_text("boost_async.sp"))),
+     dpspice.example_text("boost_async.sp")),
     ("hybrid_mix", 50.0, "out", 20,
      dpspice.example_text("hybrid_mix.sp")),
 ]

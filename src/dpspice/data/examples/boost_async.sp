@@ -1,18 +1,18 @@
 * Asynchronous boost converter: gated switch + real diode, hybrid NR-HB path.
-* The switch block is constant, Newton iterates on the diode only. The 150 nF
-* snubber slows the switch-node transition to a harmonic-resolvable ramp; it is
-* a deliberate circuit modification, not just a solver aid. It injects charge at
-* the switch node and raises V(out) above the bare Vin / (1 - d), so the DC
-* here differs from the un-snubbered converter. Convergence of the hybrid path
-* on this hard-switched diode node is not monotone in K (the truncated switch
-* node chatters across the junction threshold): this example is validated at
-* K = 20, and raising the harmonic count may stall the Newton iteration, which
-* is reported as a loud error rather than a silent wrong answer.
+* The switch block is constant, Newton iterates on the diode only. This is the
+* bare converter: no snubber, the switch node commutates hard. Plain Newton is
+* K-fragile on this node (it may stall at one harmonic count and converge at a
+* neighbouring one); when it stalls, the solver engages source/Gmin
+* continuation automatically and reports the rungs it took in the run record.
+* The DC output converges first-order in K from above toward the switched-DAE
+* transient reference 29.315 V (validation/td_boost_async.py); at the shipped
+* K = 20 it reads about 32.4 V, so validate any operating point against a
+* transient reference. A snubbered variant with a shifted operating point is
+* boost_async_snubber.sp.
 Vin vin 0 12
 L1 vin sw 100u
 S1 sw 0 g 0 SWMOD
 D1 sw out DMOD
-Csn sw 0 150n
 C1 out 0 100u
 Rl out 0 20
 Vg g 0 PULSE(0 1 0 0 0 12u 20u)

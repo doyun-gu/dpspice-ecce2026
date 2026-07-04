@@ -390,7 +390,7 @@ def test_warm_start_falls_back_to_cold_on_stiff_diode():
     falls back to the cold path automatically, so enabling the option still
     yields the converged cold result.
     """
-    rt = route_netlist(dpspice.example_text("boost_async.sp"))
+    rt = route_netlist(dpspice.example_text("boost_async_snubber.sp"))
 
     def build():
         net = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
@@ -596,7 +596,7 @@ def test_continuation_rescues_stalled_boost_async():
     """The snubbered boost_async at K = 15 is a recorded plain-Newton stall
     (report §7). The source-stepping continuation must engage, converge,
     and say so; with continuation off, the plain failure must reproduce."""
-    netl = dpspice.example_text("boost_async.sp")
+    netl = dpspice.example_text("boost_async_snubber.sp")
     K = 15
     rt, net, diodes = _async_setup(netl, K)
     plain = solve_hybrid(net, diodes, rt.f_sw, K, continuation=False)
@@ -614,7 +614,7 @@ def test_continuation_preserves_dc_trend_toward_td_reference():
     """Un-snubbered boost_async: the hybrid DC must approach the settled TD
     reference 29.315 V monotonically from above as K rises (Finding L2
     pinned the reference; the K = 15 point exists only via continuation)."""
-    netl = dpspice.example_text("boost_async.sp").replace("Csn sw 0 150n\n", "")
+    netl = dpspice.example_text("boost_async.sp")     # bare since Task 3
     ref = 29.315
     dc = {}
     for K in (10, 15, 20):
