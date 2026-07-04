@@ -250,6 +250,32 @@ def test_router_refuses_non_pulse_gate():
         rt.require_ltp()
 
 
+def test_router_distinguishes_unpinned_gate_from_state_dependent():
+    """An unpinned control node (referenced only to ground) is 'not pinned by
+    any source', not 'state-dependent'. Ground is trivially a power node, so
+    that verdict must key on a NON-ground control node touching the power path.
+    """
+    unpinned = (
+        "V1 in 0 10\nR1 in sw 1\nS1 sw 0 gx 0 SWMOD\nRl sw 0 50\n"
+        "Vg g 0 PULSE(0 1 0 0 0 5u 10u)\n"
+        ".model SWMOD SW(Ron=10m Roff=1Meg Vt=0.5)\n.end")
+    rt = route_netlist(unpinned)
+    assert not rt.ok
+    reason = rt.refused[0][1]
+    assert "not pinned by any independent source" in reason
+    assert "state-dependent" not in reason
+
+
+def test_buckboost_sync_routes_and_inverts():
+    """The inverting buck-boost routes to two complementary LTP switches and
+    its k = 0 output is negative (inverting)."""
+    rt = route_netlist(dpspice.example_text("buckboost_sync.sp"))
+    assert rt.ok and len(rt.switches) == 2
+    res = dpspice.solve_hb(dpspice.example_text("buckboost_sync.sp"), K=25)
+    assert res.converged
+    assert res.summary["harmonics"]["out"][0]["re"] < 0.0
+
+
 def test_dispatch_surfaces_refusal_as_dpspice_error():
     with pytest.raises(DpspiceError, match="state-dependent"):
         dpspice.solve_hb(STATE_DEPENDENT)
@@ -326,3 +352,58 @@ def test_boost_sync_dc_within_ripple_of_ccm_ratio():
     k0 = res.summary["harmonics"]["out"][0]
     assert k0["k"] == 0
     assert abs(k0["amplitude"] - 30.0) < max(out["ripple"], 0.1)
+
+
+def test_boost_sync_dc_bias_is_order_one_over_K():
+    """The capacitor-clamped switch node carries an O(1/K) DC truncation bias.
+
+    The shipped example parameters keep the K = 20 error inside the ripple band,
+    so the within-ripple test above passes by construction. This asserts the
+    mechanism instead, independent of those parameters: the k = 0 error must
+    strictly decrease over K and halve as K doubles (first-order convergence).
+    The reference is a Richardson limit built from the two finest grids, so no
+    conduction-loss constant is hard-coded.
+    """
+    netl = dpspice.example_text("boost_sync.sp")
+
+    def dc(K):
+        return dpspice.solve_hb(netl, K=K).summary["harmonics"]["out"][0]["re"]
+
+    Ks = [5, 10, 20, 40, 80]
+    vals = [dc(K) for K in Ks]
+    # Richardson: v(K) = v_inf - a / K, from the two finest grids.
+    a = (vals[-1] - vals[-2]) / (1 / Ks[-1] - 1 / Ks[-2])
+    v_inf = vals[-1] - a / Ks[-1]
+    errs = [abs(v_inf - v) for v in vals[:4]]
+
+    assert all(e_next < e for e, e_next in zip(errs, errs[1:])), errs
+    for e, e_next in zip(errs, errs[1:]):          # K doubles -> error halves
+        assert 1.6 < e / e_next < 2.4, (e, e_next)
+    assert all(v < 30.0 for v in vals)             # biased low, never overshoots
+
+
+def test_warm_start_falls_back_to_cold_on_stiff_diode():
+    """A warm start that misses the basin must not return a worse answer.
+
+    The clamped warm start diverges on the snubbered asynchronous boost (a stiff
+    switched-diode node) where the cold continuation converges. solve_hybrid
+    falls back to the cold path automatically, so enabling the option still
+    yields the converged cold result.
+    """
+    rt = route_netlist(dpspice.example_text("boost_async.sp"))
+
+    def build():
+        net = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
+        diodes = [Diode(net, d.n_pos, d.n_neg, ShockleyDiode(**d.params))
+                  for d in rt.diodes]
+        return net, diodes
+
+    K = 20
+    net, diodes = build()
+    cold = solve_hybrid(net, diodes, rt.f_sw, K, use_warm_start=False)
+    net2, diodes2 = build()
+    warm = solve_hybrid(net2, diodes2, rt.f_sw, K, use_warm_start=True)
+
+    assert cold.converged and warm.converged
+    scale = np.max(np.abs(cold.Xn))
+    assert np.max(np.abs(warm.Xn - cold.Xn)) / scale < 1e-6
