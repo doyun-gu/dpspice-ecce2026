@@ -209,9 +209,9 @@ route` exits nonzero when any element is refused.
   per iteration. The result matches the unmodified Newton solver to solver
   precision (asserted in the test suite).
 
-The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`
-and `src_bridge.sp` (LTP and envelope), `boost_async.sp` and `hybrid_mix.sp`
-(hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
+The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`,
+`buckboost_sync.sp` and `src_bridge.sp` (LTP and envelope), `boost_async.sp`
+and `hybrid_mix.sp` (hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
 `dpspice.solve_hb(netlist, K=7)`, `dpspice.solve_envelope(netlist, K=5,
 horizon="2m")`.
 
@@ -219,12 +219,36 @@ horizon="2m")`.
 the switch conductance pattern must equal the gate pattern. Dead-time
 intervals, discontinuous conduction (DCM) and state-dependent commutation
 fall outside its validity — use the Newton (`hb` with diode formulations) or
-transient path for those. Switches that commutate a capacitor-clamped node
-converge as O(1/K) in the DC component (harmonic truncation of the switching
-edge); the synchronous boost example documents this, and its k = 0 error
-stays inside the reported ripple band at the default K. Hard diode
-commutation on a switched node needs a snubber to keep the junction waveform
-harmonic-resolvable, as in `boost_async.sp`.
+transient path for those. A diode converter driven to light load enters DCM;
+the hybrid path will either track the new operating point or fail to converge
+loudly, but the averaged interpretation no longer holds there.
+
+*DC truncation bias at stiff switched nodes.* Whenever a switch commutates
+against a node held stiff between edges (a capacitor-clamped output, as in the
+boost and inverting buck-boost sync-switch), the DC component of that node
+converges only as O(1/K): the truncated switching function rings (Gibbs) across
+the clamped off-state voltage. The error is duty-dependent. At moderate duty it
+sits inside the ripple band at the default harmonic count (the synchronous boost
+at d = 0.6 is inside its ripple band by K = 20), but at high duty (d ≳ 0.7 on
+the boost and buck-boost) the k = 0 error *exceeds* the ripple band and only
+closes as K grows (Richardson extrapolation recovers the ideal V_in/(1−d) less
+the conduction drop). Quote accuracy at the filtered node of interest, not at
+the switched node, and raise K when the k = 0 value matters. This is a general
+property of the LTP path at stiff switched nodes, not specific to one example;
+switches that feed an inductor (the buck sync switch) do not carry it.
+
+*Hard diode commutation is convergence-fragile.* When a diode commutates on a
+hard-switched node, the truncated switch node chatters across the junction
+threshold and the hybrid Newton residual does not decrease monotonically with
+K: a given circuit may converge at one harmonic count and stall at a
+neighbouring one. Non-convergence is reported as a loud error, never a silent
+wrong answer, but do not assume that raising `--K` refines a hybrid diode
+result. `boost_async.sp` converges at its shipped default (K = 20); it carries
+a 150 nF snubber that slows the switch-node transition, which also injects
+charge and raises V(out) above the unsnubbered operating point, so the snubber
+is a deliberate circuit modification and its DC differs from the bare
+converter. Validate any hybrid diode operating point against a transient
+reference.
 
 ## Commands
 

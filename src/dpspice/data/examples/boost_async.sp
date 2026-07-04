@@ -1,9 +1,13 @@
 * Asynchronous boost converter: gated switch + real diode, hybrid NR-HB path.
-* The switch block is constant; Newton iterates on the diode only. The 150 nF
-* snubber slows the switch-node transition to a harmonic-resolvable ramp so
-* the diode commutates smoothly (quasi-square-wave operation); without it the
-* Gibbs ringing of the truncated switch node chatters across the junction
-* threshold and Newton stalls. The ramp raises V(out) above Vin / (1 - d).
+* The switch block is constant, Newton iterates on the diode only. The 150 nF
+* snubber slows the switch-node transition to a harmonic-resolvable ramp; it is
+* a deliberate circuit modification, not just a solver aid. It injects charge at
+* the switch node and raises V(out) above the bare Vin / (1 - d), so the DC
+* here differs from the un-snubbered converter. Convergence of the hybrid path
+* on this hard-switched diode node is not monotone in K (the truncated switch
+* node chatters across the junction threshold): this example is validated at
+* K = 20, and raising the harmonic count may stall the Newton iteration, which
+* is reported as a loud error rather than a silent wrong answer.
 Vin vin 0 12
 L1 vin sw 100u
 S1 sw 0 g 0 SWMOD
