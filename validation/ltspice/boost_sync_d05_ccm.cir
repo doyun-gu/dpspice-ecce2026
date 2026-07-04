@@ -1,18 +1,22 @@
-* boost_sync d=0.5 CCM start-up -- LTspice cross-check for the LTP path.
+* boost_sync d=0.5 CCM -- LTspice cross-check for the LTP path.
 * Ron/Roff/Vt match src/dpspice/data/examples/boost_sync.sp exactly; duty is
-* set to 0.5 per the validation matrix (shipped example is d=0.6). 50 kHz gate
-* pair, 400 points per switching period, .four on V(out) at the switching
-* frequency for a per-harmonic comparison against the dpspice HB k-table.
+* set to 0.5 per the validation matrix (shipped example is d=0.6). Gate edges
+* are an explicit 1 ns: a zero-edge PULSE makes LTspice auto-limit the slew to
+* Ton/10, which moves the Vt crossings by Tr/2 + Tf/2 and stretches the
+* effective duty to 0.55 (measured DC 28.9 V instead of ~24 V). The averaged
+* model's LC ring (~800 Hz, tau ~ 2RC = 4 ms) needs tens of ms to die, so
+* collection starts at 39.8 ms: the .raw and the .four see only the settled
+* tail, and the .four integrates an integer 10 periods.
 Vin vin 0 12
 L1 vin sw 100u
 S1 sw 0 g 0 SWMOD
 S2 sw out gb 0 SWMOD
 C1 out 0 100u
 Rl out 0 20
-Vg  g  0 PULSE(0 1 0 0 0 10u 20u)
-Vgb gb 0 PULSE(1 0 0 0 0 10u 20u)
+Vg  g  0 PULSE(0 1 0 1n 1n 10u 20u)
+Vgb gb 0 PULSE(1 0 0 1n 1n 10u 20u)
 .model SWMOD SW(Ron=20m Roff=1Meg Vt=0.5)
 .options plotwinsize=0
-.tran 0 5m 0 50n
-.four 50k 8 V(out)
+.tran 0 40m 39.8m 50n
+.four 50k 8 10 V(out)
 .end

@@ -1,17 +1,21 @@
 * buck_sync d=0.3 -- LTspice cross-check for the LTP path.
 * Ron/Roff/Vt match src/dpspice/data/examples/buck_sync.sp exactly; duty is
 * set to 0.3 per the validation matrix (shipped example is d=0.4). Ideal
-* V(out) DC = d*Vin = 3.6 V less Ron losses. 400 pts per period.
+* V(out) DC = d*Vin = 3.6 V less Ron losses. Gate edges are an explicit 1 ns
+* (a zero-edge PULSE is auto-limited to Ton/10, stretching the duty to 0.33
+* and the DC to 4.0 V). Output LC ring tau ~ 470 us; collection starts at
+* 5.8 ms so only the settled tail is recorded; .four over an integer 10
+* periods of that tail.
 Vin vin 0 12
 S1 vin sw g 0 SWMOD
 S2 sw 0 gb 0 SWMOD
 L1 sw out 100u
 C1 out 0 47u
 Rl out 0 5
-Vg  g  0 PULSE(0 1 0 0 0 6u 20u)
-Vgb gb 0 PULSE(1 0 0 0 0 6u 20u)
+Vg  g  0 PULSE(0 1 0 1n 1n 6u 20u)
+Vgb gb 0 PULSE(1 0 0 1n 1n 6u 20u)
 .model SWMOD SW(Ron=1m Roff=1Meg Vt=0.5)
 .options plotwinsize=0
-.tran 0 2m 0 50n
-.four 50k 8 V(out)
+.tran 0 6m 5.8m 50n
+.four 50k 8 10 V(out)
 .end
