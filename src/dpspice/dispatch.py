@@ -751,10 +751,19 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
             diode_objs.append(Diode(swnet, d.n_pos, d.n_neg, law))
         result = solve_hybrid(swnet, diode_objs, f_sw, K, tol=tol or 1e-10)
         solver = "hb-hybrid"
+        cont = getattr(result, "continuation", None)
+        if cont is not None:
+            decisions.append(Decision(
+                "continuation", result.route, "auto",
+                f"plain Newton stalled; source steps "
+                f"{[round(a, 3) for a in cont['source_steps']]}, gmin steps "
+                f"{cont['gmin_steps']}, {cont['newton_iters']} continuation "
+                f"iterations"))
         if not result.converged:
             raise DpspiceError(
-                f"Hybrid NR-HB did not converge at K={K} "
-                f"(residual {result.residual:.2e}). Increase --harmonics or --tol.")
+                f"Hybrid NR-HB did not converge at K={K} even with the "
+                f"source/Gmin continuation (residual {result.residual:.2e}). "
+                f"Increase --harmonics or --tol.")
     elif richardson:
         swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
         result = solve_ltp_richardson(swnet, f_sw, K)

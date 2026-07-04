@@ -22,6 +22,13 @@ where the cold continuation would still converge (the snubbered asynchronous
 boost is one). ``solve_hybrid`` therefore falls back to the cold path
 automatically whenever the warm-started Newton fails to converge, so enabling
 ``use_warm_start`` never returns a worse answer than the default.
+
+When the plain (cold) path itself fails — the K-fragile stalls recorded in
+the validation report §7 — ``solve_hybrid`` engages continuation: geometric
+source stepping from 10% amplitude with warm starts and adaptive step-back,
+then SPICE-style Gmin stepping at full source if the ramp is insufficient.
+A case plain Newton already solves never enters this code, so converged
+results are byte-identical to the plain path.
 """
 from __future__ import annotations
 
@@ -33,12 +40,19 @@ from .. import _engine  # noqa: F401  side-effect: flat engine modules on sys.pa
 
 import aft                                # noqa: E402
 import hb_solver as hb                    # noqa: E402
-from mna import stack_to_nodes            # noqa: E402
+from mna import stack_to_nodes, nodes_to_stack   # noqa: E402
 
 from .ltp import SwitchedHBNet, source_stack
 
 #: Default clamp on the warm-start peak diode junction voltage, volts.
 VD_CLAMP_DEFAULT = 0.4
+
+#: Geometric source-stepping ratio: 0.1 -> 0.178 -> 0.316 -> 0.562 -> 1.0.
+_SRC_RATIO = 10.0 ** 0.25
+#: Gmin ladder: start conductance and geometric descent factor.
+_GMIN_START = 1e-2
+_GMIN_FLOOR = 1e-9
+_GMIN_FACTOR = 10.0
 
 
 def warm_start(swnet: SwitchedHBNet, diodes: List, f_sw: float, K: int,
@@ -68,25 +82,168 @@ def warm_start(swnet: SwitchedHBNet, diodes: List, f_sw: float, K: int,
     return X
 
 
+def _newton_fixed(swnet, diodes, Yb, B, K, X, tol, max_iter):
+    """Damped Newton at a FIXED operator and source. (X, res, iters, ok).
+
+    Same kernel, damping and 100x residual leniency as the engine's
+    ``solve_newton``; factored here so the continuation drivers can run it
+    at scaled sources and Gmin-augmented operators without touching the
+    engine.
+    """
+    n = swnet.n
+    N = aft.oversample_N(K)
+    res = np.inf
+    for it in range(max_iter):
+        vt, _ = hb._nodes_time(X, K, n, N)
+        f_t, glist = hb._diode_current_time(diodes, vt)
+        Fnl = nodes_to_stack(aft.to_freq(f_t, K, N), K, n)
+        F = Yb @ X + B + Fnl
+        res = float(np.max(np.abs(F)))
+        if res < tol:
+            return X, res, it, True
+        J = Yb + hb._diode_jacobian(glist, K, n, N)
+        dX = np.linalg.solve(J, -F)
+        X = hb._damped_update(X, dX, Yb, B, swnet, diodes, K, n, N)
+    vt, _ = hb._nodes_time(X, K, n, N)
+    f_t, _ = hb._diode_current_time(diodes, vt)
+    Fnl = nodes_to_stack(aft.to_freq(f_t, K, N), K, n)
+    res = float(np.max(np.abs(Yb @ X + B + Fnl)))
+    return X, res, max_iter, res < tol * 100
+
+
+def _source_stepping(swnet, diodes, f_sw, K, tol, max_iter):
+    """Geometric source ramp 10% -> 100% with warm starts and adaptive
+    step-back. Returns (X, res, alphas, iters); X is None on failure."""
+    w0 = 2 * np.pi * f_sw
+    Yb, _ = swnet.assemble_linear(w0, K)
+    Bfull = source_stack(swnet, w0, K)
+    alphas, total = [], 0
+
+    # first rung: from the zero iterate (diodes off); back off if even the
+    # 10% source defeats plain Newton
+    alpha = 0.1
+    X = np.zeros_like(Bfull)
+    while True:
+        Xt, res, it, ok = _newton_fixed(swnet, diodes, Yb, alpha * Bfull, K,
+                                        X.copy(), tol, max_iter)
+        total += it
+        if ok:
+            X = Xt
+            alphas.append(alpha)
+            break
+        alpha *= 0.5
+        if alpha < 1e-3:
+            return None, res, alphas, total
+
+    ratio = _SRC_RATIO
+    while alpha < 1.0 - 1e-12:
+        target = min(1.0, alpha * ratio)
+        Xt, res, it, ok = _newton_fixed(swnet, diodes, Yb, target * Bfull, K,
+                                        X.copy(), tol, max_iter)
+        total += it
+        if ok:
+            X, alpha = Xt, target
+            alphas.append(target)
+            ratio = _SRC_RATIO                 # restore the full step
+        else:
+            ratio = np.sqrt(ratio)             # halve the geometric step
+            if ratio < 1.01:
+                return None, res, alphas, total
+    return X, res, alphas, total
+
+
+def _gmin_stepping(swnet, diodes, f_sw, K, tol, max_iter, X0=None):
+    """SPICE-style Gmin stepping at full source: a shunt gmin from every
+    node-voltage row to ground, relaxed geometrically to zero with warm
+    starts and adaptive step-back. Returns (X, res, gmins, iters)."""
+    w0 = 2 * np.pi * f_sw
+    Yb, _ = swnet.assemble_linear(w0, K)
+    Bfull = source_stack(swnet, w0, K)
+    n = swnet.n
+    H = 2 * K + 1
+    n_nodes = swnet.mna.n_nodes                # gmin on voltage rows only
+    diag = np.array([a * n + p for a in range(H) for p in range(n_nodes)])
+
+    def solve_at(g, X):
+        Yg = Yb.copy()
+        Yg[diag, diag] += g
+        return _newton_fixed(swnet, diodes, Yg, Bfull, K, X, tol, max_iter)
+
+    gmins, total = [], 0
+    g = _GMIN_START
+    X = np.zeros_like(Bfull) if X0 is None else X0.copy()
+    Xg, res, it, ok = solve_at(g, X.copy())
+    total += it
+    if not ok:
+        return None, res, gmins, total
+    X = Xg
+    gmins.append(g)
+
+    factor = _GMIN_FACTOR
+    while g > 0.0:
+        target = 0.0 if g / factor < _GMIN_FLOOR else g / factor
+        Xt, res, it, ok = solve_at(target, X.copy())
+        total += it
+        if ok:
+            X, g = Xt, target
+            gmins.append(target)
+            factor = _GMIN_FACTOR
+        else:
+            factor = np.sqrt(factor)           # halve the geometric step
+            if factor < 1.05:
+                return None, res, gmins, total
+    return X, res, gmins, total
+
+
 def solve_hybrid(swnet: SwitchedHBNet, diodes: List, f_sw: float, K: int,
                  tol: float = 1e-10, max_iter: int = 60,
                  use_warm_start: bool = False,
-                 vd_clamp: float = VD_CLAMP_DEFAULT):
-    """Newton HB on the switch-folded operator. Returns an HBResult."""
+                 vd_clamp: float = VD_CLAMP_DEFAULT,
+                 continuation: bool = True):
+    """Newton HB on the switch-folded operator. Returns an HBResult.
+
+    Plain Newton (the engine path, with its built-in linear ramp and
+    K-continuation) runs first and its converged result is returned
+    unchanged — the continuation below engages ONLY on failure, so
+    already-converging cases are byte-identical to the plain path. On
+    failure: geometric source stepping (10% -> 100%, warm-started, adaptive
+    step-back), then Gmin stepping at full source if that was insufficient.
+    The returned result carries a ``continuation`` dict recording what ran.
+    """
     if not swnet.sampled_gates:
         raise ValueError("solve_hybrid needs a SwitchedHBNet built with "
                          "sampled_gates=True (AFT-consistent switch blocks)")
-    if not use_warm_start:
-        return hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
-                               max_iter=max_iter, X0=None)
-
-    X0 = warm_start(swnet, diodes, f_sw, K, vd_clamp=vd_clamp)
+    if use_warm_start:
+        X0 = warm_start(swnet, diodes, f_sw, K, vd_clamp=vd_clamp)
+        result = hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
+                                 max_iter=max_iter, X0=X0)
+        if result.converged:
+            return result
+        # The warm start missed the basin (a known failure mode on stiff
+        # switched-diode nodes). Fall back to the cold path so the option
+        # is never worse than the default.
     result = hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
-                             max_iter=max_iter, X0=X0)
-    if result.converged:
+                             max_iter=max_iter, X0=None)
+    if result.converged or not continuation:
         return result
-    # The warm start missed the basin (a known failure mode on stiff
-    # switched-diode nodes). Fall back to the cold continuation path so the
-    # option is never worse than the default.
-    return hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
-                           max_iter=max_iter, X0=None)
+
+    plain_iters = result.iters
+    X, res, alphas, iters = _source_stepping(swnet, diodes, f_sw, K,
+                                             tol, max_iter)
+    meta = {"engaged": True, "source_steps": alphas, "gmin_steps": [],
+            "newton_iters": iters}
+    if X is None:
+        X, res, gmins, git = _gmin_stepping(swnet, diodes, f_sw, K,
+                                            tol, max_iter)
+        meta["gmin_steps"] = gmins
+        meta["newton_iters"] += git
+    if X is None:
+        result.continuation = meta             # both ladders exhausted
+        return result                          # the plain failure, loud
+    w0 = 2 * np.pi * f_sw
+    out = hb.HBResult(stack_to_nodes(X, K, swnet.n), K, w0, swnet,
+                      iters=plain_iters + meta["newton_iters"],
+                      residual=res, converged=True,
+                      route="newton+continuation")
+    out.continuation = meta
+    return out

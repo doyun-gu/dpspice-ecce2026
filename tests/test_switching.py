@@ -562,3 +562,64 @@ def test_bias_correction_d08_improvement_beats_first_order_term():
     improvement = abs(dc(plain) - ref) - abs(dc(full) - ref)
     assert first_order > 0
     assert improvement >= first_order, (improvement, first_order)
+
+
+# ----------------------------------------------------------------------
+# 9. Newton continuation for the hybrid path (engages only on failure)
+# ----------------------------------------------------------------------
+
+def test_continuation_not_engaged_when_plain_newton_converges():
+    """A case plain Newton already solves must return byte-identical
+    results — the continuation may not perturb the converged path at all."""
+    K = 12
+    rt, net, diodes = _mixed_setup(K)
+    hybrid = solve_hybrid(net, diodes, rt.f_sw, K)
+
+    _, net2, diodes2 = _mixed_setup(K)
+    base = hb.solve_newton(net2, diodes2, rt.f_sw, K=K, tol=1e-10)
+
+    assert hybrid.converged and base.converged
+    assert hybrid.route == "newton"
+    assert not hasattr(hybrid, "continuation")
+    assert np.array_equal(hybrid.Xn, base.Xn)
+
+
+def _async_setup(netl, K):
+    rt = route_netlist(netl)
+    net = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
+    diodes = [Diode(net, d.n_pos, d.n_neg, ShockleyDiode(**d.params))
+              for d in rt.diodes]
+    return rt, net, diodes
+
+
+def test_continuation_rescues_stalled_boost_async():
+    """The snubbered boost_async at K = 15 is a recorded plain-Newton stall
+    (report §7). The source-stepping continuation must engage, converge,
+    and say so; with continuation off, the plain failure must reproduce."""
+    netl = dpspice.example_text("boost_async.sp")
+    K = 15
+    rt, net, diodes = _async_setup(netl, K)
+    plain = solve_hybrid(net, diodes, rt.f_sw, K, continuation=False)
+    assert not plain.converged                 # the stall this guards
+
+    rt, net, diodes = _async_setup(netl, K)
+    res = solve_hybrid(net, diodes, rt.f_sw, K)
+    assert res.converged
+    assert res.route == "newton+continuation"
+    assert res.continuation["source_steps"][-1] == 1.0
+    assert res.residual < 1e-10 * 100
+
+
+def test_continuation_preserves_dc_trend_toward_td_reference():
+    """Un-snubbered boost_async: the hybrid DC must approach the settled TD
+    reference 29.315 V monotonically from above as K rises (Finding L2
+    pinned the reference; the K = 15 point exists only via continuation)."""
+    netl = dpspice.example_text("boost_async.sp").replace("Csn sw 0 150n\n", "")
+    ref = 29.315
+    dc = {}
+    for K in (10, 15, 20):
+        rt, net, diodes = _async_setup(netl, K)
+        r = solve_hybrid(net, diodes, rt.f_sw, K)
+        assert r.converged, K
+        dc[K] = float(r.harmonics("out")[K].real)
+    assert dc[10] > dc[15] > dc[20] > ref, dc
