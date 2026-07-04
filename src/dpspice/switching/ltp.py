@@ -153,3 +153,41 @@ def solve_ltp(swnet: SwitchedHBNet, f_sw: float, K: int,
     Xn = stack_to_nodes(X, K, swnet.n)
     return HBResult(Xn, K, w0, swnet, iters=iters, residual=residual,
                     converged=converged, route="ltp+bias")
+
+
+def solve_ltp_richardson(swnet: SwitchedHBNet, f_sw: float, K: int) -> HBResult:
+    """LTP solve with Richardson extrapolation of the truncation error.
+
+    Solves at K and 2K and returns 2 X_{2K,k} - X_{K,k} for every shared
+    harmonic |k| <= K; harmonics K < |k| <= 2K come from the fine solve
+    unextrapolated (they have no coarse partner). Extrapolating the ripple
+    components too — not just k = 0 — is justified by measurement: every
+    retained coefficient of a gated-switch solve converges first-order in K
+    (the k = 0 tail defect propagates through the full truncated operator),
+    and the Richardson limit of the boost_sync spectrum matches LTspice
+    per-harmonic to sub-1% where the plain K = 25 solve is off by 5x
+    (VALIDATION_REPORT.md §2).
+
+    Model-free alternative to the closed-form correction of
+    ``solve_ltp(..., bias_correction=True)`` at roughly the cost of the 2K
+    solve (~8x the K solve); the two must not be combined (they correct the
+    same defect). Returns a result at harmonic order 2K, route
+    ``ltp+richardson``, with per-solve wall times in ``t_coarse``/``t_fine``
+    and the extrapolation boundary in ``k_coarse``.
+    """
+    import time
+    t0 = time.perf_counter()
+    coarse = solve_ltp(swnet, f_sw, K)
+    t1 = time.perf_counter()
+    fine = solve_ltp(swnet, f_sw, 2 * K)
+    t2 = time.perf_counter()
+    Xn = fine.Xn.copy()
+    lo, hi = K, 3 * K + 1                # |k| <= K inside the 2K-wide stack
+    Xn[:, lo:hi] = 2.0 * fine.Xn[:, lo:hi] - coarse.Xn
+    res = HBResult(Xn, 2 * K, coarse.w0, swnet, iters=0,
+                   residual=max(coarse.residual, fine.residual),
+                   converged=True, route="ltp+richardson")
+    res.k_coarse = K
+    res.t_coarse = t1 - t0
+    res.t_fine = t2 - t1
+    return res

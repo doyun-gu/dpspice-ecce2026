@@ -576,16 +576,23 @@ def _harmonic_table(result, node: str) -> list:
             "im": float(c.imag),
             "amplitude": float(abs(c) if k == 0 else 2 * abs(c)),
         })
+        # Richardson results carry the extrapolation boundary: rows at
+        # |k| <= k_coarse are 2*X_2K - X_K, rows above come from the fine
+        # solve alone. Label them so downstream tables stay honest.
+        k_coarse = getattr(result, "k_coarse", None)
+        if k_coarse is not None:
+            rows[-1]["extrapolated"] = bool(k <= k_coarse)
     return rows
 
 
 def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                   decisions, warnings, with_waveforms, with_envelopes,
-                  horizon_s, dt_s, bias_correction=False) -> RunResult:
+                  horizon_s, dt_s, bias_correction=False,
+                  richardson=False) -> RunResult:
     """LTP / hybrid / envelope solve of a routed switched netlist."""
     from .switching import (RoutingError, SwitchedHBNet, assemble_bank,
                             integrate, reconstruct, route_netlist, solve_ltp,
-                            solve_hybrid)
+                            solve_ltp_richardson, solve_hybrid)
     from device import ShockleyDiode            # noqa: E402
     from reference_td import Diode              # noqa: E402
     import metrics as M                          # noqa: E402
@@ -620,9 +627,14 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                                   f"default K={K} for the switched-linear paths"))
 
     n_states_full = int(build_mna(netlist).n_total)
-    _check_size((2 * K + 1) * n_states_full)
+    _check_size((2 * (2 * K if richardson else K) + 1) * n_states_full)
 
     routing_rows = [r.to_dict() for r in rt.rows]
+
+    if bias_correction and richardson:
+        raise DpspiceError(
+            "--bias-correction and --richardson correct the same truncation "
+            "defect; combining them double-counts it. Pass one.")
 
     if mode_sel == "envelope":
         if bias_correction:
@@ -630,6 +642,11 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                 "--bias-correction: the closed-form tail correction applies "
                 "to the periodic steady state (LTP path); ignored for the "
                 "envelope transient.")
+        if richardson:
+            warnings.append(
+                "--richardson: K-extrapolation applies to the periodic "
+                "steady state (LTP path); ignored for the envelope "
+                "transient.")
         if rt.diodes:
             names = ", ".join(d.name for d in rt.diodes)
             raise DpspiceError(
@@ -720,6 +737,13 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
                 f"diode(s) ({names}) route this netlist to the hybrid NR-HB "
                 f"solver, whose truncation defect is not the closed-form gate "
                 f"tail. Drop the flag or the diode(s).")
+        if richardson:
+            names = ", ".join(d.name for d in rt.diodes)
+            raise DpspiceError(
+                f"--richardson needs a guaranteed solve at both K and 2K; "
+                f"diode(s) ({names}) route this netlist to the hybrid NR-HB "
+                f"solver, whose convergence is K-fragile (see the validation "
+                f"report). Drop the flag or the diode(s).")
         swnet = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
         diode_objs = []
         for d in rt.diodes:
@@ -731,6 +755,15 @@ def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
             raise DpspiceError(
                 f"Hybrid NR-HB did not converge at K={K} "
                 f"(residual {result.residual:.2e}). Increase --harmonics or --tol.")
+    elif richardson:
+        swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
+        result = solve_ltp_richardson(swnet, f_sw, K)
+        solver = result.route            # "ltp+richardson"
+        decisions.append(Decision(
+            "richardson", f"K={K} + K={2 * K}", "override",
+            f"harmonics |k|<={K} extrapolated 2*X_2K - X_K; solve times "
+            f"{result.t_coarse * 1000:.1f} ms (K={K}) + "
+            f"{result.t_fine * 1000:.1f} ms (K={2 * K})"))
     else:
         swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
         result = solve_ltp(swnet, f_sw, K, bias_correction=bias_correction)
@@ -789,7 +822,8 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
         with_waveforms: bool = True, with_envelopes: bool = False,
         horizon_s: Optional[float] = None,
         dt_s: Optional[float] = None,
-        bias_correction: bool = False) -> RunResult:
+        bias_correction: bool = False,
+        richardson: bool = False) -> RunResult:
     """Parse, auto-decide, simulate. The one-call entry point."""
     netlist_str = read_netlist(source)
     netlist = parse_ltspice_netlist(netlist_str)
@@ -820,11 +854,16 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
         return _run_switched(netlist_str, netlist, mode_sel, f0, harmonics,
                              tol, decisions, warnings, with_waveforms,
                              with_envelopes, horizon_s, dt_s,
-                             bias_correction=bias_correction)
+                             bias_correction=bias_correction,
+                             richardson=richardson)
     if bias_correction:
         raise DpspiceError(
             "--bias-correction corrects the gated-switch LTP steady state; "
             "this netlist has no gated switch (S) elements.")
+    if richardson:
+        raise DpspiceError(
+            "--richardson extrapolates the gated-switch LTP steady state in "
+            "K; this netlist has no gated switch (S) elements.")
 
     # The transient modes need a simulation window; reject early with a clear
     # message instead of letting the engine raise a bare ValueError mid-solve.

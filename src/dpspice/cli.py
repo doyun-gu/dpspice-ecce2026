@@ -208,6 +208,12 @@ def run(
              "gated-switch LTP path (validation/bias_closed_form.md). "
              "Steady-state hb analysis of switch-only netlists; off by "
              "default so results match the plain truncated solve."),
+    richardson: bool = typer.Option(
+        False, "--richardson",
+        help="Solve the gated-switch LTP steady state at K and 2K and "
+             "Richardson-extrapolate the shared harmonics (2*X_2K - X_K). "
+             "Model-free alternative to --bias-correction (mutually "
+             "exclusive); off by default. Costs roughly the 2K solve."),
     envelope: bool = typer.Option(
         False, "--envelope",
         help="Include the phasor-magnitude envelope |X(t)| the IDP solver "
@@ -237,12 +243,14 @@ def run(
             with err.status(f"[cyan]Solving ({preview.mode_selected.upper()})…", spinner="dots"):
                 result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
                                  with_envelopes=envelope, horizon=horizon, dt=dt,
-                                 bias_correction=bias_correction)
+                                 bias_correction=bias_correction,
+                                 richardson=richardson)
             err.print(Text(f"  ✓ Solved in {result.solve_time*1000:.1f} ms", style="green"))
         else:
             result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
                              with_envelopes=envelope, horizon=horizon, dt=dt,
-                             bias_correction=bias_correction)
+                             bias_correction=bias_correction,
+                             richardson=richardson)
     except DpspiceError as exc:
         _fail(exc)
 

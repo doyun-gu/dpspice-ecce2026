@@ -480,3 +480,55 @@ def test_bias_correction_refuses_unsupported_paths():
     with pytest.raises(DpspiceError, match="no gated switch"):
         dpspice.run("Vs in 0 SINE(0 1 50)\nR1 in out 1k\nC1 out 0 1u\n"
                     ".tran 0 100m\n.end", mode="hb", bias_correction=True)
+
+
+# ----------------------------------------------------------------------
+# 8. Richardson K-extrapolation (--richardson)
+# ----------------------------------------------------------------------
+
+def test_richardson_matches_two_solve_extrapolation():
+    """The feature must return exactly 2*X_2K - X_K on the shared harmonics
+    and the fine solve's coefficients above K, at result order 2K."""
+    res = dpspice.solve_hb(BOOST_D06, K=10, richardson=True)
+    coarse = dpspice.solve_hb(BOOST_D06, K=10)
+    fine = dpspice.solve_hb(BOOST_D06, K=20)
+
+    def row(r, k):
+        return r.summary["harmonics"]["out"][k]
+
+    assert res.solver == "ltp+richardson"
+    for k in range(0, 11):
+        want = 2 * row(fine, k)["re"] - row(coarse, k)["re"]
+        assert abs(row(res, k)["re"] - want) < 1e-12 * max(1.0, abs(want))
+        assert row(res, k)["extrapolated"] is True
+    for k in range(11, 21):
+        assert abs(row(res, k)["re"] - row(fine, k)["re"]) < 1e-15
+        assert row(res, k)["extrapolated"] is False
+
+
+def test_richardson_removes_first_order_error():
+    """Same acceptance shape as the closed-form test: the extrapolated DC
+    must land an order of magnitude closer to the K -> inf limit than the
+    plain K = 10 solve (reference from the two finest grids)."""
+    ref = 2 * _out_dc(BOOST_D06, 80) - _out_dc(BOOST_D06, 40)
+    plain = _out_dc(BOOST_D06, 10)
+    rich = dpspice.solve_hb(BOOST_D06, K=10, richardson=True)
+    corr = rich.summary["harmonics"]["out"][0]["re"]
+    assert abs(corr - ref) < 0.15 * abs(plain - ref), (plain, corr, ref)
+
+
+def test_richardson_reports_both_solve_times():
+    res = dpspice.solve_hb(BOOST_D06, K=10, richardson=True)
+    d = next(d for d in res.decisions if d.field == "richardson")
+    assert "K=10" in str(d.value) and "K=20" in str(d.value)
+    assert "ms" in d.reason and d.reason.count("ms") == 2
+
+
+def test_richardson_refuses_bias_correction_combination():
+    """Both flags correct the same defect; combining must refuse loudly."""
+    with pytest.raises(DpspiceError, match="double-counts"):
+        dpspice.solve_hb(BOOST_D06, K=10, richardson=True,
+                         bias_correction=True)
+    with pytest.raises(DpspiceError, match="K-fragile|hybrid"):
+        dpspice.solve_hb(dpspice.example_text("boost_async.sp"),
+                         K=15, richardson=True)

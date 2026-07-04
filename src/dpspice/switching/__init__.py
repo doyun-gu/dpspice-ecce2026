@@ -13,7 +13,7 @@ from .router import (
     RoutingTable,
     route_netlist,
 )
-from .ltp import SwitchedHBNet, solve_ltp
+from .ltp import SwitchedHBNet, solve_ltp, solve_ltp_richardson
 from .envelope import assemble_bank, integrate, reconstruct
 from .hybrid import solve_hybrid, warm_start
 
@@ -26,6 +26,7 @@ __all__ = [
     "route_netlist",
     "SwitchedHBNet",
     "solve_ltp",
+    "solve_ltp_richardson",
     "assemble_bank",
     "integrate",
     "reconstruct",

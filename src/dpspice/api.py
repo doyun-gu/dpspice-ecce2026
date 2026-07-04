@@ -213,13 +213,16 @@ class Circuit:
             with_envelopes: bool = False,
             horizon: Optional[Union[Number, str]] = None,
             dt: Optional[Union[Number, str]] = None,
-            bias_correction: bool = False) -> Result:
+            bias_correction: bool = False,
+            richardson: bool = False) -> Result:
         """Auto-decide and simulate. Returns a :class:`Result`.
 
         ``horizon`` and ``dt`` apply to the switched-linear envelope mode only
         (seconds, SPICE suffixes accepted as strings). ``bias_correction``
         applies the closed-form O(1/K) truncation-tail correction on the
-        gated-switch LTP path (``validation/bias_closed_form.md``).
+        gated-switch LTP path (``validation/bias_closed_form.md``);
+        ``richardson`` instead solves at K and 2K and extrapolates. The two
+        correct the same defect and cannot be combined.
         """
         run = dispatch.run(self.netlist, mode=mode, harmonics=harmonics,
                            omega_hz=_coerce_omega(omega), tol=tol,
@@ -227,7 +230,8 @@ class Circuit:
                            with_envelopes=with_envelopes,
                            horizon_s=_coerce_seconds(horizon, "horizon"),
                            dt_s=_coerce_seconds(dt, "dt"),
-                           bias_correction=bias_correction)
+                           bias_correction=bias_correction,
+                           richardson=richardson)
         return Result(run)
 
     # -- switched-linear routing ------------------------------------------

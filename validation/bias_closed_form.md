@@ -152,7 +152,29 @@ second-order remainder: at d = 0.8 it is 0.38 V where the uncorrected error
 was 8.26 V, a 22× reduction, and it shrinks quadratically in the K sweep
 (0.30 V at K = 5, 0.019 V at K = 20).
 
-## 6. What the correction is not
+## 6. The Richardson alternative (`--richardson`)
+
+The same defect can be removed model-free: solve at K and 2K and take
+2·X_{2K} − X_K, which cancels the a/K term of any first-order-convergent
+quantity. Shipped as `solve_ltp_richardson` / `--richardson`, mutually
+exclusive with `--bias-correction` (they correct the same defect;
+combining double-counts it).
+
+**Ripple handling.** The extrapolation is applied to **every shared
+harmonic |k| ≤ K**, not only k = 0. Justification is empirical, not just
+structural: the k = 0 tail defect propagates through the full truncated
+operator, so each retained coefficient converges first-order in K, and the
+Richardson limit of the boost_sync spectrum matches LTspice per-harmonic to
+sub-1% where the plain K = 25 solve is off by 5× on the fundamental
+(VALIDATION_REPORT.md §2). Harmonics K < |k| ≤ 2K have no coarse partner
+and are returned from the fine solve unextrapolated; the per-harmonic table
+labels each row (`extrapolated: true/false`) and the run records both solve
+times. Cost is dominated by the 2K solve (~8× the K solve, dense-LU
+scaling), which is why the closed-form correction of §2–3 is preferred
+when it applies: it reaches comparable accuracy for a handful of re-solves
+of the *same* factor-sized system.
+
+## 7. What the correction is not
 
 - It is **not** exact: the two-level branch-voltage model drops the
   intra-interval ripple's contribution to the tail, which is the observed
