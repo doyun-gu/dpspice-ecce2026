@@ -49,10 +49,12 @@ def _run(args):
 
 def _json_commands():
     """Every command README advertises as accepting --json, with real args."""
-    with _rectifier_refs() as (sp, raw):
+    with _rectifier_refs() as (sp, raw), example_path("buck_sync.sp") as buck:
         return [
             (["info", sp, "--json"]),
             (["run", sp, "--json"]),
+            (["route", str(buck), "--json"]),
+            (["run", str(buck), "--analysis", "hb", "--K", "7", "--json"]),
             (["bench", "--json"]),
             (["reproduce", "--json"]),
             (["reproduce", "--table", "3", "--json"]),
@@ -80,6 +82,7 @@ def test_json_is_pure_json_on_stdout(args):
 @pytest.mark.parametrize("args", [
     ["info", "--quiet"],
     ["run", "--quiet"],
+    ["route", "--quiet"],
     ["bench", "--quiet"],
     ["reproduce", "--quiet"],
     ["validate", "--quiet"],
@@ -87,10 +90,12 @@ def test_json_is_pure_json_on_stdout(args):
 ])
 def test_quiet_has_no_box_chrome(args):
     # Fill in the netlist/ref placeholders that some commands need.
-    with _rectifier_refs() as (sp, raw):
+    with _rectifier_refs() as (sp, raw), example_path("buck_sync.sp") as buck:
         cmd = list(args)
         if cmd[0] in {"info", "run"}:
             cmd.insert(1, sp)
+        elif cmd[0] == "route":
+            cmd.insert(1, str(buck))
         elif cmd[0] == "validate":
             cmd[1:1] = [sp, "--ref", raw]
         code, stdout, stderr = _run(cmd)

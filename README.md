@@ -141,6 +141,7 @@ R2 N003 0    2k
 | `V`, `I` sources | `DC`, `SINE(off ampl freq)`, `PULSE(...)`, `PWL(...)` |
 | `K` | mutual inductive coupling (transformers, WPT links) |
 | `D` | diode (`.model D(Is=... N=...)`); the **only** nonlinear device in v1 |
+| `S` | gate-driven switch `Sxxx n+ n- nc+ nc- MODEL` with `.model SW(Ron=... Roff=... Vt=... [Vh=...])`; the gate must trace to an independent `PULSE` source (see *Switched circuits*) |
 | `.tran`, `.ic`, `.param`, `.model`, `.options`, `.end`, `.backanno` | `.options` / `.backanno` are tolerated; `{expr}` parameter expressions are evaluated |
 
 **Not yet supported** (these parse but the solver rejects them with a clear
@@ -169,11 +170,68 @@ guesses either: it **decides, announces, and lets you override**.
 
 Run `dpspice info <netlist>` to see every decision *before* solving.
 
+## Switched circuits
+
+Netlists containing gate-driven switches (`S` elements) route through a
+switched-linear pipeline instead of the transient solvers. The router
+classifies every element and prints its decision:
+
+```bash
+dpspice route examples/buck_sync.sp          # routing table, no solve
+dpspice run examples/buck_sync.sp --analysis hb --K 7        # LTP steady state
+dpspice run examples/buck_sync.sp --analysis envelope --K 5 \
+    --horizon 2m --dt 2u                     # envelope-bank transient
+```
+
+**Routing rule.** A switch is LTP-routable when its controlling pair traces
+to an independent `PULSE` source that is not part of the power path, so the
+gate waveform is known a priori as a `(duty, f_sw, phase)` triple. Inverted
+gate trains fold to the complement duty and shifted phase automatically.
+State-dependent gates (the controlling pair sits in the power path) and
+non-`PULSE` gates are refused with an error naming the element and the
+reason; those circuits belong on the Newton or transient path. `dpspice
+route` exits nonzero when any element is refused.
+
+**Three analysis paths**, chosen by what the router finds:
+
+* **LTP harmonic balance** (`--analysis hb`, gated switches only). Each
+  switch becomes a constant Toeplitz block in the harmonic-balance operator,
+  so the periodic steady state is a *single linear solve* — no Newton
+  iteration, no time stepping. Per-harmonic tables are printed alongside the
+  usual waveform summary.
+* **Envelope bank** (`--analysis envelope`, gated switches only). The same
+  constant coupling matrices drive a fixed-step trapezoidal integration of
+  the harmonic envelopes, capturing the start-up transient. `--horizon`
+  defaults to the `.tran` window; `|X0|` and `|X1|` envelopes are exported
+  with the waveforms.
+* **Hybrid NR-HB** (`--analysis hb`, switches plus diodes). Switch blocks are
+  assembled once outside the Newton loop; only the diode blocks are refreshed
+  per iteration. The result matches the unmodified Newton solver to solver
+  precision (asserted in the test suite).
+
+The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`
+and `src_bridge.sp` (LTP and envelope), `boost_async.sp` and `hybrid_mix.sp`
+(hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
+`dpspice.solve_hb(netlist, K=7)`, `dpspice.solve_envelope(netlist, K=5,
+horizon="2m")`.
+
+**Limitations.** The LTP formulation assumes continuous conduction (CCM):
+the switch conductance pattern must equal the gate pattern. Dead-time
+intervals, discontinuous conduction (DCM) and state-dependent commutation
+fall outside its validity — use the Newton (`hb` with diode formulations) or
+transient path for those. Switches that commutate a capacitor-clamped node
+converge as O(1/K) in the DC component (harmonic truncation of the switching
+edge); the synchronous boost example documents this, and its k = 0 error
+stays inside the reported ripple band at the default K. Hard diode
+commutation on a switched node needs a snubber to keep the junction waveform
+harmonic-resolvable, as in `boost_async.sp`.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `dpspice run <netlist>` | Auto-decide and simulate. `--out result.json` saves waveforms. |
+| `dpspice route <netlist>` | Classify every element of a switched netlist (no solve). Nonzero exit if any element is refused. |
 | `dpspice info <netlist>` | Parse and report mode/omega/states/devices. No solve. |
 | `dpspice validate <netlist> --ref <ltspice.raw>` | Cross-validate vs an LTspice `.raw`; reports NRMSE / R². |
 | `dpspice bench` | Computational benchmark over the bundled examples. |

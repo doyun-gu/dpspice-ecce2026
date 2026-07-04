@@ -186,10 +186,22 @@ def info(
 @app.command()
 def run(
     netlist: str = typer.Argument(..., help="Path to a .sp/.cir/.net file (or netlist text)."),
-    mode: str = typer.Option("auto", help="auto|td|idp|hb."),
-    harmonics: Optional[int] = typer.Option(None, "--harmonics", "-K", help="HB harmonic count K."),
+    mode: str = typer.Option("auto", help="auto|td|idp|hb|envelope."),
+    analysis: Optional[str] = typer.Option(
+        None, "--analysis",
+        help="Alias for --mode (hb = LTP/hybrid steady state for switched "
+             "netlists, envelope = switched-linear envelope-bank transient)."),
+    harmonics: Optional[int] = typer.Option(None, "--harmonics", "--K", "-K",
+                                            help="HB harmonic count K."),
     omega: Optional[str] = typer.Option(None, help="Carrier frequency in Hz (SPICE suffixes ok)."),
     tol: Optional[float] = typer.Option(None, help="Solver tolerance."),
+    horizon: Optional[str] = typer.Option(
+        None, "--horizon",
+        help="Envelope transient horizon in seconds (SPICE suffixes ok). "
+             "Defaults to the .tran window."),
+    dt: Optional[str] = typer.Option(
+        None, "--dt",
+        help="Envelope transient step in seconds (SPICE suffixes ok)."),
     envelope: bool = typer.Option(
         False, "--envelope",
         help="Include the phasor-magnitude envelope |X(t)| the IDP solver "
@@ -204,6 +216,11 @@ def run(
     """Parse, auto-decide, simulate; print a summary and (optionally) save waveforms."""
     chrome = _interactive(quiet or json_out)
     banner(quiet or json_out, no_banner)
+    if analysis is not None:
+        if mode != "auto" and mode != analysis:
+            _fail(DpspiceError(
+                f"--mode {mode} and --analysis {analysis} disagree; pass one."))
+        mode = analysis
     try:
         ckt = api.load(netlist)
         if chrome:
@@ -213,11 +230,11 @@ def run(
             err.print(Text(f"  ✓ {preview.reason}", style="green"))
             with err.status(f"[cyan]Solving ({preview.mode_selected.upper()})…", spinner="dots"):
                 result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
-                                 with_envelopes=envelope)
+                                 with_envelopes=envelope, horizon=horizon, dt=dt)
             err.print(Text(f"  ✓ Solved in {result.solve_time*1000:.1f} ms", style="green"))
         else:
             result = ckt.run(mode=mode, harmonics=harmonics, omega=omega, tol=tol,
-                             with_envelopes=envelope)
+                             with_envelopes=envelope, horizon=horizon, dt=dt)
     except DpspiceError as exc:
         _fail(exc)
 
@@ -246,8 +263,9 @@ def _plain_run(result) -> None:
     _line(f"states: {result.states}")
     if result.K is not None:
         _line(f"harmonics_K: {result.K}")
-        _line(f"converged: {result.converged} iters={result.iters} "
-              f"residual={result.residual:.3e}")
+        if result.converged is not None:
+            _line(f"converged: {result.converged} iters={result.iters} "
+                  f"residual={result.residual:.3e}")
     _line(f"solve_ms: {result.solve_time * 1000:.3f}")
     if "conduction_angle_deg" in result.summary:
         _line(f"conduction_angle_deg: {result.summary['conduction_angle_deg']:.3f}")
@@ -255,6 +273,10 @@ def _plain_run(result) -> None:
     for name, vals in nodes.items():
         metrics = " ".join(f"{k}={v:.6g}" for k, v in vals.items())
         _line(f"node {name}: {metrics}")
+    for node, rows in result.summary.get("harmonics", {}).items():
+        for r in rows:
+            _line(f"harmonic V({node}) k={r['k']}: freq_hz={r['freq_hz']:.6g} "
+                  f"amplitude={r['amplitude']:.6g} re={r['re']:.6g} im={r['im']:.6g}")
     _plain_warnings(result.warnings)
 
 
@@ -268,7 +290,8 @@ def _render_run(result, quiet: bool) -> None:
     head.add_row("MNA states", str(result.states))
     if result.K is not None:
         head.add_row("Harmonics K", str(result.K))
-        head.add_row("Converged", f"{result.converged} ({result.iters} iters, res {result.residual:.1e})")
+        if result.converged is not None:
+            head.add_row("Converged", f"{result.converged} ({result.iters} iters, res {result.residual:.1e})")
     head.add_row("Solve time", f"{result.solve_time*1000:.1f} ms")
     if "conduction_angle_deg" in result.summary:
         head.add_row("Conduction angle", f"{result.summary['conduction_angle_deg']:.1f}°")
@@ -284,9 +307,73 @@ def _render_run(result, quiet: bool) -> None:
         for name, vals in nodes.items():
             t.add_row(name, *[f"{v:.4g}" for v in vals.values()])
         out.print(t)
+    for node, rows in result.summary.get("harmonics", {}).items():
+        ht = Table(title=f"Harmonics V({node})", title_style="bold",
+                   show_header=True, header_style="bold")
+        for c in ("k", "freq [Hz]", "amplitude", "re", "im"):
+            ht.add_column(c, justify="right")
+        for r in rows:
+            ht.add_row(str(r["k"]), f"{r['freq_hz']:.6g}",
+                       f"{r['amplitude']:.5g}", f"{r['re']:.5g}", f"{r['im']:.5g}")
+        out.print(ht)
     if not quiet:
         for w in result.warnings:
             err.print(Text(f"warning: {w}", style="yellow"))
+
+
+# ----------------------------------------------------------------------
+# route
+# ----------------------------------------------------------------------
+
+@app.command()
+def route(
+    netlist: str = typer.Argument(..., help="Path to a .sp/.cir/.net file (or netlist text)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Essential output only."),
+    no_banner: bool = typer.Option(False, "--no-banner", help="Drop the startup banner."),
+    json_out: bool = typer.Option(False, "--json", help="Emit JSON to stdout."),
+):
+    """Classify every element of a switched netlist and show the gate parameters.
+
+    Exits non-zero (with the reason) when any switch cannot be routed to the
+    switched-linear paths.
+    """
+    banner(quiet or json_out, no_banner)
+    try:
+        table = api.route(netlist)
+    except DpspiceError as exc:
+        _fail(exc)
+
+    if json_out:
+        out.print_json(json.dumps(table.to_dict()))
+        if not table.ok:
+            raise typer.Exit(code=1)
+        return
+
+    if quiet:
+        for r in table.rows:
+            _line(f"{r.element}: {r.cls} | {r.path}")
+        if table.f_sw:
+            _line(f"f_sw_hz: {table.f_sw:g}")
+        for name, reason in table.refused:
+            _eline(f"error: {name}: {reason}")
+        if not table.ok:
+            raise typer.Exit(code=1)
+        return
+
+    t = Table(title="Routing table", title_style="bold",
+              show_header=True, header_style="bold")
+    t.add_column("element"); t.add_column("class"); t.add_column("path / parameters")
+    for r in table.rows:
+        style = {"switch-LTP": "magenta", "diode-NR": "yellow",
+                 "gate-drive": "cyan", "REFUSED": "bold red"}.get(r.cls, "")
+        t.add_row(r.element, Text(r.cls, style=style) if style else r.cls, r.path)
+    out.print(t)
+    if table.f_sw:
+        out.print(Text(f"Switching frequency: {table.f_sw:g} Hz", style="bold"))
+    for name, reason in table.refused:
+        err.print(Text(f"error: {name}: {reason}", style="bold red"))
+    if not table.ok:
+        raise typer.Exit(code=1)
 
 
 # ----------------------------------------------------------------------

@@ -233,14 +233,33 @@ def _extract_carrier_hz(netlist, decisions: List[Decision],
     return f0
 
 
+def _gated_switches(netlist) -> List:
+    return [e for e in netlist.elements if e.prefix == "S"]
+
+
 def _decide_mode(netlist, requested: str,
                  decisions: List[Decision]) -> Tuple[str, str]:
-    """Return (mode, reason). ``requested`` is one of auto/idp/td/hb."""
+    """Return (mode, reason). ``requested`` is one of auto/idp/td/hb/envelope."""
     nl_devs = _nonlinear_devices(netlist)
+    switches = _gated_switches(netlist)
     if requested != "auto":
         reason = f"mode forced to '{requested}' by --mode"
         decisions.append(Decision("mode", requested, "override", reason))
         return requested, reason
+
+    if switches:
+        sw_names = ", ".join(s.name for s in switches)
+        if nl_devs:
+            nl_names = ", ".join(d.name for d in nl_devs)
+            reason = (f"gated switch(es) ({sw_names}) + nonlinear device(s) "
+                      f"({nl_names}) -> hybrid NR-HB (constant switch blocks, "
+                      f"Newton on the diodes)")
+        else:
+            reason = (f"gated switch(es) ({sw_names}), no autonomous device "
+                      f"-> switched-linear LTP harmonic balance (one linear "
+                      f"solve)")
+        decisions.append(Decision("mode", "hb", "auto", reason))
+        return "hb", reason
 
     if nl_devs:
         names = ", ".join(d.name for d in nl_devs)
@@ -519,9 +538,236 @@ def _run_hb(netlist_str, netlist, f0, harmonics, tol, decisions, warnings,
     )
 
 
+def route(source: str):
+    """Route a switched netlist. Returns a switching.RoutingTable.
+
+    Refusals are data (the table renders them and ``ok`` is False); only
+    structurally unroutable netlists (a node owned solely by switch/diode
+    elements, gates disagreeing on f_sw) raise.
+    """
+    from .switching import route_netlist, RoutingError
+
+    netlist_str = read_netlist(source)
+    netlist = parse_ltspice_netlist(netlist_str)
+    if not netlist.elements:
+        raise DpspiceError("Empty or unparseable netlist (no circuit elements found).")
+    _precheck_netlist(netlist_str, netlist)
+    try:
+        return route_netlist(netlist_str)
+    except RoutingError as exc:
+        raise DpspiceError(str(exc)) from exc
+
+
+def _harmonic_table(result, node: str) -> list:
+    """Per-harmonic rows for one node from a two-sided HBResult spectrum.
+
+    ``amplitude`` is the time-domain amplitude of harmonic k (|X_0| at DC,
+    2|X_k| for k>0 since the signal is real).
+    """
+    coeffs = result.harmonics(node)              # two-sided, DC at index K
+    K = int(result.K)
+    rows = []
+    for k in range(0, K + 1):
+        c = coeffs[K + k]
+        rows.append({
+            "k": k,
+            "freq_hz": k * result.w0 / (2 * np.pi),
+            "re": float(c.real),
+            "im": float(c.imag),
+            "amplitude": float(abs(c) if k == 0 else 2 * abs(c)),
+        })
+    return rows
+
+
+def _run_switched(netlist_str, netlist, mode_sel, f0, harmonics, tol,
+                  decisions, warnings, with_waveforms, with_envelopes,
+                  horizon_s, dt_s) -> RunResult:
+    """LTP / hybrid / envelope solve of a routed switched netlist."""
+    from .switching import (RoutingError, SwitchedHBNet, assemble_bank,
+                            integrate, reconstruct, route_netlist, solve_ltp,
+                            solve_hybrid)
+    from device import ShockleyDiode            # noqa: E402
+    from reference_td import Diode              # noqa: E402
+    import metrics as M                          # noqa: E402
+
+    try:
+        rt = route_netlist(netlist_str)
+        rt.require_ltp()
+    except RoutingError as exc:
+        raise DpspiceError(str(exc)) from exc
+
+    f_sw = rt.f_sw
+    if f_sw is None:  # pragma: no cover - run() only lands here with S elements
+        raise DpspiceError("No gated switches routed; nothing for the "
+                           "switched-linear paths to solve.")
+    decisions.append(Decision("omega", f_sw, "netlist",
+                              "switching frequency read off the routed gate "
+                              "PULSE source(s)"))
+    if f0 is not None and abs(f0 - f_sw) > 1e-9 * f_sw:
+        raise DpspiceError(
+            f"Source carrier ({f0:g} Hz) and switching frequency ({f_sw:g} Hz) "
+            f"differ; quasi-periodic excitation is outside the single-carrier "
+            f"switched-linear paths. Align the frequencies or use --mode td."
+        )
+
+    if harmonics is not None:
+        K = int(harmonics)
+        decisions.append(Decision("harmonics", K, "override",
+                                  f"K set by --harmonics = {K}"))
+    else:
+        K = DEFAULT_K
+        decisions.append(Decision("harmonics", K, "auto",
+                                  f"default K={K} for the switched-linear paths"))
+
+    n_states_full = int(build_mna(netlist).n_total)
+    _check_size((2 * K + 1) * n_states_full)
+
+    routing_rows = [r.to_dict() for r in rt.rows]
+
+    if mode_sel == "envelope":
+        if rt.diodes:
+            names = ", ".join(d.name for d in rt.diodes)
+            raise DpspiceError(
+                f"The envelope bank is switched-LINEAR; diode(s) ({names}) "
+                f"make the bank matrices state-dependent. Use --analysis hb "
+                f"(hybrid steady state) or --mode td."
+            )
+        if horizon_s is None:
+            span = _tran_span(netlist)
+            if span is None:
+                raise DpspiceError(
+                    "The envelope transient needs a horizon: pass --horizon "
+                    "or add a .tran card to the netlist.")
+            horizon_s = span[1]
+        horizon_s = float(horizon_s)
+        if horizon_s <= 0:
+            raise DpspiceError(f"Envelope horizon must be positive, got {horizon_s:g} s.")
+        if dt_s is not None:
+            dt_s = float(dt_s)
+            if not 0 < dt_s < horizon_s:
+                raise DpspiceError(
+                    f"--dt {dt_s:g} s must lie in (0, horizon={horizon_s:g} s).")
+            n_steps = max(1, int(round(horizon_s / dt_s)))
+        else:
+            n_steps = 1000
+        decisions.append(Decision("envelope_grid", f"{n_steps} steps",
+                                  "override" if dt_s is not None else "auto",
+                                  f"horizon {horizon_s:g} s, fixed-step "
+                                  f"trapezoidal with BE opening"))
+
+        swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
+        t0 = time.perf_counter()
+        bank = assemble_bank(swnet, f_sw, K)
+        t, traj, ks = integrate(bank, horizon_s, n_steps)
+        dt_solve = time.perf_counter() - t0
+
+        node_v = {}
+        for node in swnet.netlist.non_ground_nodes():
+            idx = swnet.idx(node)
+            if idx >= 0:
+                node_v[node] = reconstruct(traj, ks, t, 2 * np.pi * f_sw, idx)
+        waveforms = []
+        if with_waveforms:
+            waveforms = [Waveform.from_arrays(f"V({name})", t, v)
+                         for name, v in node_v.items()]
+        # The harmonic envelopes ARE this solver's state; export the DC and
+        # fundamental magnitudes per node regardless of --envelope.
+        envelopes = []
+        for node in node_v:
+            idx = swnet.idx(node)
+            envelopes.append(Waveform.from_arrays(
+                f"|X0|({node})", t, np.abs(traj[:, K, idx])))
+            envelopes.append(Waveform.from_arrays(
+                f"|X1|({node})", t, 2 * np.abs(traj[:, K + 1, idx])))
+
+        return RunResult(
+            netlist_title=netlist.title or "(untitled)",
+            solver="envelope",
+            mode_selected="envelope",
+            reason=next((d.reason for d in decisions if d.field == "mode"), ""),
+            omega_hz=f_sw,
+            n_states=int(swnet.n),
+            K=K,
+            decisions=decisions,
+            solve_time_s=dt_solve,
+            summary={"nodes": _summarise_nodes(
+                         t, {f"V({name})": v for name, v in node_v.items()}),
+                     "t_end": float(t[-1]),
+                     "n_timepoints": int(t.size),
+                     "n_harmonics": K,
+                     "routing": routing_rows},
+            waveforms=waveforms,
+            envelopes=envelopes,
+            warnings=warnings,
+        )
+
+    # steady state: LTP (switches only) or hybrid NR-HB (switches + diodes)
+    if with_envelopes:
+        warnings.append(
+            "--envelope: the phasor-magnitude envelope is produced by the "
+            "IDP solver only; use --analysis envelope for the switched bank.")
+    t0 = time.perf_counter()
+    if rt.diodes:
+        swnet = SwitchedHBNet(rt.clean_netlist, rt.switches, sampled_gates=True)
+        diode_objs = []
+        for d in rt.diodes:
+            law = ShockleyDiode(**d.params) if d.params else ShockleyDiode()
+            diode_objs.append(Diode(swnet, d.n_pos, d.n_neg, law))
+        result = solve_hybrid(swnet, diode_objs, f_sw, K, tol=tol or 1e-10)
+        solver = "hb-hybrid"
+        if not result.converged:
+            raise DpspiceError(
+                f"Hybrid NR-HB did not converge at K={K} "
+                f"(residual {result.residual:.2e}). Increase --harmonics or --tol.")
+    else:
+        swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
+        result = solve_ltp(swnet, f_sw, K)
+        solver = "ltp"
+    dt_solve = time.perf_counter() - t0
+
+    node_summary = {}
+    harmonic_tables = {}
+    waveforms = []
+    for node in swnet.netlist.non_ground_nodes():
+        if swnet.idx(node) < 0:
+            continue
+        tt, vv = result.waveform(node)
+        node_summary[f"V({node})"] = {
+            "vdc": float(M.vdc(vv)),
+            "ripple": float(M.ripple(vv)),
+            "peak": float(np.max(np.abs(vv))),
+        }
+        harmonic_tables[node] = _harmonic_table(result, node)
+        if with_waveforms:
+            waveforms.append(Waveform.from_arrays(f"V({node})", tt, vv))
+
+    return RunResult(
+        netlist_title=netlist.title or "(untitled)",
+        solver=solver,
+        mode_selected="hb",
+        reason=next((d.reason for d in decisions if d.field == "mode"), ""),
+        omega_hz=f_sw,
+        n_states=int(swnet.n),
+        K=int(result.K),
+        converged=bool(result.converged),
+        iters=int(result.iters),
+        residual=float(result.residual),
+        decisions=decisions,
+        solve_time_s=dt_solve,
+        summary={"nodes": node_summary,
+                 "n_harmonics": int(result.K),
+                 "harmonics": harmonic_tables,
+                 "routing": routing_rows},
+        waveforms=waveforms,
+        warnings=warnings,
+    )
+
+
 def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
         omega_hz: Optional[float] = None, tol: Optional[float] = None,
-        with_waveforms: bool = True, with_envelopes: bool = False) -> RunResult:
+        with_waveforms: bool = True, with_envelopes: bool = False,
+        horizon_s: Optional[float] = None,
+        dt_s: Optional[float] = None) -> RunResult:
     """Parse, auto-decide, simulate. The one-call entry point."""
     netlist_str = read_netlist(source)
     netlist = parse_ltspice_netlist(netlist_str)
@@ -533,6 +779,25 @@ def run(source: str, mode: str = "auto", harmonics: Optional[int] = None,
     warnings: List[str] = []
     mode_sel, _ = _decide_mode(netlist, mode, decisions)
     f0 = _extract_carrier_hz(netlist, decisions, warnings, omega_hz)
+
+    switches = _gated_switches(netlist)
+    if mode_sel == "envelope" and not switches:
+        raise DpspiceError(
+            "--analysis envelope is the switched-linear envelope bank; the "
+            "netlist has no gated switch (S) elements. Linear transients run "
+            "on the IDP/TD paths, nonlinear ones on hb/td."
+        )
+    if switches and mode_sel in ("idp", "td"):
+        names = ", ".join(s.name for s in switches)
+        raise DpspiceError(
+            f"Netlist contains gated switch element(s) ({names}) which the "
+            f"idp/td paths do not stamp. Use --analysis hb (LTP / hybrid "
+            f"steady state) or --analysis envelope (bank transient)."
+        )
+    if switches or mode_sel == "envelope":
+        return _run_switched(netlist_str, netlist, mode_sel, f0, harmonics,
+                             tol, decisions, warnings, with_waveforms,
+                             with_envelopes, horizon_s, dt_s)
 
     # The transient modes need a simulation window; reject early with a clear
     # message instead of letting the engine raise a bare ValueError mid-solve.

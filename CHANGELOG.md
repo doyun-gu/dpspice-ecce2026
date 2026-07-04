@@ -4,6 +4,39 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Switched-linear pipeline** (`dpspice.switching`). Gate-driven switches
+  (`Sxxx n+ n- nc+ nc- MODEL` with `.model SW(Ron= Roff= Vt= [Vh=])`) are
+  now first-class netlist elements. A router classifies every element
+  (linear, source, gated switch, diode, gate drive) and extracts each
+  switch's `(duty, f_sw, phase)` triple from its independent `PULSE` gate
+  source, folding inverted trains to the complement duty. State-dependent
+  and non-`PULSE` gates are refused with an error naming the element and the
+  reason.
+- **Three switched analysis paths**: LTP harmonic balance (switches become
+  constant Toeplitz blocks, periodic steady state in one linear solve),
+  envelope-bank transient (fixed-step trapezoidal integration of the
+  harmonic envelopes over the constant coupling matrices), and hybrid NR-HB
+  (constant switch blocks assembled once outside the Newton loop, diode
+  blocks refreshed per iteration, with an optional clamped LTP warm start).
+  Hybrid and warm-started results match the unmodified Newton solver within
+  tolerance, asserted in the test suite.
+- **CLI**: `dpspice route <netlist>` renders the routing table (nonzero exit
+  plus the refusal reason when a netlist is not LTP-routable);
+  `dpspice run --analysis {hb,envelope} --K <n> [--horizon 2m] [--dt 2u]`
+  runs the new paths with per-harmonic output tables for HB and `|X0|`,
+  `|X1|` envelope export for the envelope mode. `--analysis` is an alias for
+  `--mode`; `--horizon` defaults to the `.tran` window.
+- **Python API**: `dpspice.route(netlist)` returning a `RoutingTable`,
+  `dpspice.solve_hb(netlist, K=...)` and
+  `dpspice.solve_envelope(netlist, K=..., horizon=..., dt=...)`, returning
+  the same `Result` objects as `run`.
+- **Examples**: `buck_sync.sp`, `boost_sync.sp`, `src_bridge.sp` (LTP and
+  envelope paths), `boost_async.sp`, `hybrid_mix.sp` (hybrid NR-HB path).
+
 ## [1.0.5] - 2026-07-03
 
 ### Added
