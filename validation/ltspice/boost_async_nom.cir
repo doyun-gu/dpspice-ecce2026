@@ -1,0 +1,19 @@
+* boost_async nominal load -- LTspice cross-check for the hybrid NR-HB path.
+* Mirrors src/dpspice/data/examples/boost_async.sp including the 150 nF
+* snubber and the diode model, so the comparison is against the same circuit
+* the hybrid solver sees (snubber included). 50 kHz gate, d=0.6, 400 pts per
+* period. Expect V(out) above Vin/(1-d) because the snubber injects charge.
+Vin vin 0 12
+L1 vin sw 100u
+S1 sw 0 g 0 SWMOD
+D1 sw out DMOD
+Csn sw 0 150n
+C1 out 0 100u
+Rl out 0 20
+Vg g 0 PULSE(0 1 0 0 0 12u 20u)
+.model SWMOD SW(Ron=20m Roff=1Meg Vt=0.5)
+.model DMOD D(Is=1e-9 N=1)
+.options plotwinsize=0
+.tran 0 5m 0 50n
+.four 50k 8 V(out)
+.end
