@@ -39,8 +39,31 @@ analytic averaged model, judged against the reported peak-to-peak ripple band.
 Buck: DC error is conduction loss only, inside ripple at every duty (the switch
 feeds an inductor, no truncation bias). Boost and buck-boost: inside ripple
 through d=0.5, **exceed ripple at d ≥ 0.7** (bold). This is the O(1/K) DC
-truncation bias, confirmed independently in §7, now documented as a general
-LTP-path property (Finding F2).
+truncation bias, confirmed independently in §7, documented as a general
+LTP-path property (Finding F2) and since corrected in closed form
+(`--bias-correction`, `validation/bias_closed_form.md`; re-run below).
+
+### Duty sweep re-run with the shipped correction (`--bias-correction`, K=15)
+
+| Topology | d=0.2 | d=0.3 | d=0.5 | d=0.7 | d=0.8 |
+|---|---|---|---|---|---|
+| boost (err / ripple) | 0.033 / 0.98 | 0.046 / 0.87 | 0.117 / 0.99 | 0.515 / 1.58 | 1.854 / 3.09 |
+| buck-boost | 0.014 / 0.95 | 0.022 / 0.84 | 0.069 / 0.94 | 0.383 / 1.66 | 1.562 / 3.19 |
+
+**Every previously out-of-band cell moves inside the ripple band**, including
+d = 0.8 (boost 9.73 → 1.85 against a 3.1 V band; buck-boost 9.48 → 1.56
+against 3.2 V). The residual against the averaged model is dominated by the
+genuine Ron conduction drop — the averaged reference is lossless — plus the
+O(1/K²) remainder of the correction (~0.38 V at d = 0.8,
+`bias_closed_form.md` §5). The buck row is untouched by construction: the
+complementary-pair correction is a structural zero there. The corrected
+ripple figures differ slightly from the plain ones because the k = 0 defect
+pushed through the full operator adjusts all retained harmonics.
+The d = 0.8 regression is pinned parameter-independently
+(`test_bias_correction_d08_improvement_beats_first_order_term`): the
+improvement over the plain solve, measured against a Richardson reference,
+must be at least the analytic first-order term evaluated at the plain
+solution — every quantity from the solver, no hard-coded voltages.
 
 ### Frequency sweep (d=0.5, K=15): all cells route and solve; DC tracks the averaged model, ripple scales with period. nominal/5 widens ripple (boost 7.9 V), nominal×5 shrinks it (0.32 V); DC error is flat.
 

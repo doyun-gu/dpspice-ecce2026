@@ -532,3 +532,33 @@ def test_richardson_refuses_bias_correction_combination():
     with pytest.raises(DpspiceError, match="K-fragile|hybrid"):
         dpspice.solve_hb(dpspice.example_text("boost_async.sp"),
                          K=15, richardson=True)
+
+
+def test_bias_correction_d08_improvement_beats_first_order_term():
+    """Duty-sweep regression at the worst recorded cell (boost, d = 0.8).
+
+    Parameter-independent formulation: against a Richardson reference from
+    the two finest grids, the self-consistent correction must improve the
+    plain K = 15 solve by at least the analytic first-order term (the
+    single-pass defect evaluated at the plain solution's operating point,
+    max_iter=1). Every quantity comes from the solver itself -- no
+    hard-coded voltages, so re-tuned example parameters cannot silently
+    pass.
+    """
+    netl = BOOST_D06.replace("12u 20u", "16u 20u")     # d = 0.8
+    rt = route_netlist(netl)
+    swnet = SwitchedHBNet(rt.clean_netlist, rt.switches)
+
+    def dc(res):
+        return res.Xn[swnet.idx("out"), res.K].real
+
+    plain = solve_ltp(swnet, rt.f_sw, 15)
+    first = solve_ltp(swnet, rt.f_sw, 15, bias_correction=True, max_iter=1)
+    full = solve_ltp(swnet, rt.f_sw, 15, bias_correction=True)
+    assert full.converged and not first.converged      # one pass != fixed point
+
+    ref = 2 * dc(solve_ltp(swnet, rt.f_sw, 80)) - dc(solve_ltp(swnet, rt.f_sw, 40))
+    first_order = dc(first) - dc(plain)
+    improvement = abs(dc(plain) - ref) - abs(dc(full) - ref)
+    assert first_order > 0
+    assert improvement >= first_order, (improvement, first_order)
