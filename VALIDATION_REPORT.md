@@ -318,6 +318,7 @@ findings (Finding F2).
 | F2 | medium | README understated the O(1/K) bias (duty-dependent, exceeds ripple at d≥0.7) and mis-framed the boost_async snubber as a convergence fix | Reworked limitations and the example comment; added parameter-independent O(1/K) regression test | `03b06d6`, `4f6f7d7` |
 | L1 | medium | LTspice decks drove gates with zero-slew PULSE sources (silently limited to Ton/10, ~10% duty stretch) and two decks sampled `.four` before settling | Re-authored all decks: 1 ns edges, ≥10 τ settling before the recorded tail, integer-period `.four`; results ingested in §2 | `b1be8cc` |
 | L2 | medium | The reported 31.38 V un-snubbered boost_async TD reference exceeds the 30 V lossless bound; it matches a snubbered/unsettled run | Settled references pinned by two independent methods: 29.315 V bare / 31.094 V snubbered (in-repo TD, `validation/td_boost_async.py`) vs 29.310 / 31.088 V (LTspice). §7 and the Task 2 acceptance target corrected | `7284430` |
+| B1 | medium | The shipped `--bias-correction` fixed point **diverges** outside a bounded contraction regime — spectral radius of its iteration matrix ≥ 1 at low switched-node stiffness ratio R·C·f_sw with high duty (observed at ρ = 0.1, d = 0.8: residuals grow to ~1e68; predicted floor K ≥ 72 from the same closed form, measured divergence through K = 64). Finding F3 of the basis-selection study (`exploration/basis-selection/FINDINGS.md`) | Documented behaviour, no algorithm change: `converged=False` at engine level; dispatch/CLI raise a typed error naming the regime (never a silent corrected value); README limitation added; regression test `test_bias_correction_divergence_is_loud_error` | `b0599ee` |
 | — | info | Lanczos-σ smoothing evaluated as an O(1/K) mitigation | Rejected (worsens DC and ripple); documented here, not shipped | — |
 | — | pass | Rectifier solution byte-identical to main | none needed | — |
 
@@ -340,5 +341,9 @@ snubber's operating-point shift** (the settled snubbered reference is
 bias that decays with K). The shipped `boost_async.sp` is now the bare
 converter, with the snubbered variant kept as `boost_async_snubber.sp` and its
 operating-point shift documented in the netlist header. A hybrid DC at
-moderate K should still be quoted with a transient cross-check. None of this
-blocks the gated-switch LTP/envelope paths, which are ready.
+moderate K should still be quoted with a transient cross-check. On the LTP
+side, the bias correction's divergence regime (ledger B1) is a documented
+usability limit rather than a correctness risk: outside its contraction
+region the fixed point fails loudly, and `--richardson` covers the same
+defect there. None of this blocks the gated-switch LTP/envelope paths, which
+are ready.

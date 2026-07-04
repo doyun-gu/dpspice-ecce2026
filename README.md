@@ -244,6 +244,21 @@ K and 2K and extrapolates the shared harmonics (results labelled
 `ltp+richardson`, both solve times reported). They correct the same defect
 and are mutually exclusive.
 
+*The bias correction is contractive only in a bounded regime.* The closed-form
+correction is applied as a fixed-point iteration, and its iteration matrix
+scales with the switch conductance swing times the gate tail times the
+circuit's response to the k = 0 defect. A stiff switched node at high duty —
+a low R·C_out·f_sw output around d ≳ 0.7 — can put the spectral radius above
+one at any practical K, and the iteration then *diverges* rather than
+degrades. This is a general property of the fixed point, not of one circuit.
+Non-convergence is always reported: `converged=False` on the result object,
+and the CLI/dispatch layer raises a typed error instead of printing a
+corrected value — a non-converged correction must never be used. In that
+regime `--richardson` (which corrects the same defect without a fixed point)
+and raising K on the plain path remain available; a per-interval exact
+analysis covering it exists as an exploration prototype
+(`exploration/basis-selection/`) and is not part of the package.
+
 *Hard diode commutation is convergence-fragile.* When a diode commutates on a
 hard-switched node, the truncated switch node chatters across the junction
 threshold and the plain hybrid Newton residual does not decrease monotonically

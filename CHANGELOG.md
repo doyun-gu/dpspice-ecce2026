@@ -46,7 +46,13 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fixed point. Parameter-free; structural zero on the buck; results
   labelled `ltp+bias`. Derivation and validation in
   `validation/bias_closed_form.md`. Off by default; refused (loudly) on the
-  hybrid and non-switched paths where the derivation does not apply.
+  hybrid and non-switched paths where the derivation does not apply. The
+  fixed point is contractive only in a bounded regime — a stiff switched
+  node at high duty (low R·C·f_sw) can sit outside it and the iteration
+  diverges rather than degrades (VALIDATION_REPORT.md, ledger B1);
+  non-convergence surfaces as `converged=False` plus a typed dispatch/CLI
+  error naming the regime, never a silently returned corrected value
+  (regression-tested).
 - **Richardson K-extrapolation for the LTP path** (`--richardson`,
   `solve_ltp_richardson`). Solves at K and 2K and returns 2·X₂ₖ − Xₖ on the
   shared harmonics (fine-only harmonics unextrapolated and labelled in the
