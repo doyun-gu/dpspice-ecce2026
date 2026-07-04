@@ -14,6 +14,14 @@ at its DC conductance, scaled so the peak diode junction voltage equals
 voltage by volts and the exponential diode diverges from there; clamping the
 excursion keeps the first Newton step inside the basin. The warm iterate
 replaces both continuation safeguards (source stepping, K-continuation).
+
+The warm start is a best-effort accelerator, not a guarantee: it cuts the
+iteration count sharply where it lands in the basin (e.g. the hybrid_mix
+example, 58 -> 22 iterations) but it can miss on stiff switched-diode nodes
+where the cold continuation would still converge (the snubbered asynchronous
+boost is one). ``solve_hybrid`` therefore falls back to the cold path
+automatically whenever the warm-started Newton fails to converge, so enabling
+``use_warm_start`` never returns a worse answer than the default.
 """
 from __future__ import annotations
 
@@ -68,8 +76,17 @@ def solve_hybrid(swnet: SwitchedHBNet, diodes: List, f_sw: float, K: int,
     if not swnet.sampled_gates:
         raise ValueError("solve_hybrid needs a SwitchedHBNet built with "
                          "sampled_gates=True (AFT-consistent switch blocks)")
-    X0: Optional[np.ndarray] = None
-    if use_warm_start:
-        X0 = warm_start(swnet, diodes, f_sw, K, vd_clamp=vd_clamp)
+    if not use_warm_start:
+        return hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
+                               max_iter=max_iter, X0=None)
+
+    X0 = warm_start(swnet, diodes, f_sw, K, vd_clamp=vd_clamp)
+    result = hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
+                             max_iter=max_iter, X0=X0)
+    if result.converged:
+        return result
+    # The warm start missed the basin (a known failure mode on stiff
+    # switched-diode nodes). Fall back to the cold continuation path so the
+    # option is never worse than the default.
     return hb.solve_newton(swnet, diodes, f_sw, K=K, tol=tol,
-                           max_iter=max_iter, X0=X0)
+                           max_iter=max_iter, X0=None)
