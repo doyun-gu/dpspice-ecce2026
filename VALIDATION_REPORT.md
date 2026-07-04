@@ -73,22 +73,73 @@ LTP-path property (Finding F2).
 
 ## 2. External LTspice validation
 
-Decks are provided in `validation/ltspice/` and are **NOT run** (no `.raw`/`.log`
-present). `compare.py` skips each case with a named banner until its LTspice
-output exists.
+All decks in `validation/ltspice/` have now been run (LTspice 26.0.2 for
+macOS, batch mode; the working invocation is in `RUN.md` — the app is a
+CrossOver/Wine wrapper and the documented `Contents/MacOS/LTspice -b` line
+exits silently without output). A fifth deck, `boost_async_nosnub.cir`, was
+added so the bare async converter is pinned independently of the snubber.
 
-| Deck | Purpose | Status |
-|---|---|---|
-| `boost_sync_d05_ccm.cir` | LTP path, d=0.5 CCM start-up | not run |
-| `boost_async_nom.cir` | hybrid path, snubber included | not run |
-| `buck_sync_d03.cir` | LTP path, no truncation bias | not run |
-| `hybrid_mix.cir` | hybrid path, 50 Hz fundamental | not run |
+**Finding L1 (deck authoring, fixed before ingest):** the as-committed decks
+drove the gates with zero-slew `PULSE` sources. LTspice silently limits
+Tr=Tf=0 to Ton/10, which moves both Vt crossings and stretches the effective
+duty by ~10% (measured: buck DC 4.009 V instead of 3.599 V, boost_sync
+28.86 V instead of 23.9 V). Two decks also took their `.four` window before
+the output had settled (boost_sync LC ring, spread 0.43 V across periods;
+boost_async tail τ = 2RC = 4 ms, drift 0.25 V at the old 7.8 ms start). The
+decks were re-authored with explicit 1 ns edges, collection windows ≥10 τ
+out, and integer-period `.four` windows — the same conventions the
+exploration campaign had already established. Solver untouched; this is
+exactly the class of error the external check exists to catch, on either
+side.
 
-Each deck matches the example's Ron/Roff/Vt exactly, sets `plotwinsize=0`, uses
-≥200 points per switching period, and emits a `.four` table. Expected agreement
-is waveform NRMSE ~0.2–3% and per-harmonic error consistent with the exploration
-on components above the noise floor. `RUN.md` gives the folder-open command, the
-batch run lines, and the comparison step.
+`compare.py` was extended for the ingest: a reader for LTspice 26's mixed
+float64/float32 binary `.raw` layout (the packaged engine reader assumes
+all-float64 and is deliberately left untouched), a data-driven measurement
+floor (spread of per-period means inside the recorded tail), and waveform
+NRMSE on the settled tail. The decks record from an integer number of
+switching periods, so the fold onto the phase grid aligns LTspice and HB
+exactly, with no fitted phase shift.
+
+As-run results (`compare.py`, harmonic amplitudes from the `.four` tables):
+
+| Deck | LTspice DC | dpspice DC (K) | harmonics k=1..5 | NRMSE full / AC-coupled |
+|---|---|---|---|---|
+| `buck_sync_d03` | 3.5992 V | 3.5993 V (15) | ≤0.2% | 0.45% / 0.02% |
+| `hybrid_mix` | 8.7691 V | 8.7736 V (20) | ≤0.4% | 0.68% / 0.62% |
+| `boost_sync_d05_ccm` | 23.897 V | 23.531 V (25) | see below | 344% / 156% |
+| `boost_async_nom` | 31.088 V | 32.908 V (20) | 8–58% | 907% / 3.4% |
+| `boost_async_nosnub` | 29.310 V | 32.431 V (20) | 19–77% | 1776% / 7.5% |
+
+Buck and hybrid_mix land inside the expected fixed-step band (~0.2–3%) on
+every metric: the paths without a truncation-biased node agree with LTspice
+to a few tenths of a percent per harmonic. The three boost rows are outside
+the band and are accounted for as follows.
+
+- **The "full" NRMSE column is pp-normalized.** The repo's `nrmse()`
+  convention divides by the reference peak-to-peak, which is millivolts of
+  ripple here; a DC gap of volts then reads as hundreds of percent. The DC
+  row and the AC-coupled column carry the information; the full column is
+  kept for honesty about the convention.
+- **boost_sync: finite-K truncation, vanishing in the limit.** The 0.366 V
+  DC gap at K=25 is the §7 O(1/K) bias. It is not only DC: the harmonic
+  amplitudes at the output carry the same O(1/K) error (fundamental 0.234 at
+  K=25 vs LTspice 0.049). Richardson-extrapolating dpspice K∈{200,400}
+  reproduces LTspice to 2 mV at DC (23.899 vs 23.897) and sub-1% on the
+  dominant odd harmonics (k=1: 0.0490 vs 0.0490; k=3: 0.00539 vs 0.00539;
+  k=5: 0.00195 vs 0.00194). The even harmonics are second-order small
+  (≤3 mV absolute, ~1e-4 of DC) on both sides. The K→∞ agreement is
+  external confirmation that the LTP path solves the right circuit and that
+  the entire finite-K gap is the truncation tail — the target of the
+  closed-form bias correction (`validation/bias_closed_form.md`).
+- **boost_async (both variants): hybrid-path finite-K bias, plus a wrong
+  reference in the earlier report — see Finding L2 in §7.** The K=20 DC gaps
+  (1.8 V snubbered, 3.1 V un-snubbered) are the same truncation mechanism at
+  the diode-clamped switch node. Ripple shape agrees to 3.4% / 7.5%
+  (AC-coupled) despite the DC offset.
+
+Measurement floors (per-period-mean spread of the recorded tail) are
+2×10⁻⁵…10⁻³ V per deck; every harmonic quoted above is above its deck's
+floor.
 
 ## 3. Router adversarial tests
 
@@ -196,6 +247,7 @@ findings (Finding F2).
 | R1 | low | Unpinned gate referenced to ground was refused with a misleading "state-dependent" reason (ground is trivially a power node) | Key the state-dependent verdict on a non-ground control node; floating gate now reports "not pinned by any source". Verdict unchanged. | `399a300` |
 | F3 | medium | Clamped warm start diverges on boost_async (converged=False); the exposed `solve_hybrid(use_warm_start=True)` could return a worse answer than default | Cold-start fallback when the warm Newton fails to converge; default path unchanged and byte-identical | `d5c82ab` |
 | F2 | medium | README understated the O(1/K) bias (duty-dependent, exceeds ripple at d≥0.7) and mis-framed the boost_async snubber as a convergence fix | Reworked limitations and the example comment; added parameter-independent O(1/K) regression test | `03b06d6`, `4f6f7d7` |
+| L1 | medium | LTspice decks drove gates with zero-slew PULSE sources (silently limited to Ton/10, ~10% duty stretch) and two decks sampled `.four` before settling | Re-authored all decks: 1 ns edges, ≥10 τ settling before the recorded tail, integer-period `.four`; results ingested in §2 | `b1be8cc` |
 | — | info | Lanczos-σ smoothing evaluated as an O(1/K) mitigation | Rejected (worsens DC and ripple); documented here, not shipped | — |
 | — | pass | Rectifier solution byte-identical to main | none needed | — |
 
