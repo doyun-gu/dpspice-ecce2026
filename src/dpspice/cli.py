@@ -190,7 +190,9 @@ def run(
     analysis: Optional[str] = typer.Option(
         None, "--analysis",
         help="Alias for --mode (hb = LTP/hybrid steady state for switched "
-             "netlists, envelope = switched-linear envelope-bank transient)."),
+             "netlists, envelope = switched-linear envelope-bank transient). "
+             "The hybrid switch+diode path is experimental; cross-check its "
+             "DC against a transient reference."),
     harmonics: Optional[int] = typer.Option(None, "--harmonics", "--K", "-K",
                                             help="HB harmonic count K."),
     omega: Optional[str] = typer.Option(None, help="Carrier frequency in Hz (SPICE suffixes ok)."),

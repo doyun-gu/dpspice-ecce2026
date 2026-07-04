@@ -202,6 +202,10 @@ def solve_hybrid(swnet: SwitchedHBNet, diodes: List, f_sw: float, K: int,
                  continuation: bool = True):
     """Newton HB on the switch-folded operator. Returns an HBResult.
 
+    EXPERIMENTAL: this path is validated on a narrower circuit population
+    than the LTP and envelope paths (see VALIDATION_REPORT.md); quote a
+    hybrid DC at moderate K with a transient cross-check.
+
     Plain Newton (the engine path, with its built-in linear ramp and
     K-continuation) runs first and its converged result is returned
     unchanged — the continuation below engages ONLY on failure, so

@@ -204,10 +204,12 @@ route` exits nonzero when any element is refused.
   the harmonic envelopes, capturing the start-up transient. `--horizon`
   defaults to the `.tran` window; `|X0|` and `|X1|` envelopes are exported
   with the waveforms.
-* **Hybrid NR-HB** (`--analysis hb`, switches plus diodes). Switch blocks are
-  assembled once outside the Newton loop; only the diode blocks are refreshed
-  per iteration. The result matches the unmodified Newton solver to solver
-  precision (asserted in the test suite).
+* **Hybrid NR-HB** (`--analysis hb`, switches plus diodes) — **experimental**.
+  Switch blocks are assembled once outside the Newton loop; only the diode
+  blocks are refreshed per iteration. The result matches the unmodified
+  Newton solver to solver precision (asserted in the test suite), but the
+  path has been validated on a narrower circuit population than the LTP and
+  envelope paths — see the limitations below and `VALIDATION_REPORT.md`.
 
 The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`,
 `buckboost_sync.sp` and `src_bridge.sp` (LTP and envelope), `boost_async.sp`,
@@ -392,3 +394,7 @@ always resolves to the latest archived version.
   year      = {2026}
 }
 ```
+
+The switched-linear extension (gated switches, LTP/envelope/hybrid paths) is
+not covered by the ECCE paper above: a paper on it is in preparation. Until
+it is published, cite the software DOI for that functionality.
