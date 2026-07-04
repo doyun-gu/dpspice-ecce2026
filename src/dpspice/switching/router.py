@@ -232,9 +232,17 @@ def route_netlist(netlist_str: str) -> RoutingTable:
             src = vsrc_by_nodes.get((ncm, ncp))
             inverted_pins = src is not None
         if src is None:
-            if ncp in power_nodes or ncm in power_nodes:
+            # Ground is trivially a power node, so only a NON-ground control
+            # node coinciding with the power path makes the gate state-
+            # dependent. A control node that is neither ground nor pinned by a
+            # source is simply floating -- a different, clearer diagnostic.
+            ctrl_power = sorted(
+                {ncp, ncm}
+                & power_nodes
+                - {g for g in (ncp, ncm) if g.lower() in _GROUND})
+            if ctrl_power:
                 reason = (
-                    f"controlling node pair ({ncp},{ncm}) is part of the power "
+                    f"controlling node {ctrl_power[0]} is part of the power "
                     f"path -- the gate is state-dependent (the circuit decides "
                     f"the switching instants), which the prescribed-gate LTP "
                     f"model cannot represent; use the Newton or transient path")
