@@ -111,6 +111,11 @@ update at release time — neither is done on the branch).
 > LTspice cross-checks with settled tails and finite gate edges, an
 > in-repo switched-DAE transient reference), and 40+ new tests.
 >
+> The CLI also got easier to pick up: `dpspice <netlist>` with no command
+> runs it, any netlist argument that is not a file on disk resolves
+> against the bundled examples by name (from any working directory), and
+> `dpspice examples` lists, prints, or copies them out.
+>
 > **The hybrid switch+diode path is experimental.** It is validated on a
 > narrower circuit population than the LTP and envelope paths; quote a
 > hybrid DC at moderate K with a transient cross-check.
@@ -137,6 +142,28 @@ update at release time — neither is done on the branch).
 
 The "paper in preparation" note is also in the README next to the citation
 section (added in `89c55bb`).
+
+## Addendum — post-audit commits (2026-07-06)
+
+Two commits landed after the evidence head `89c55bb`:
+
+- `5b6d459` — this checklist file itself (touches nothing else).
+- `7edd594` — CLI ergonomics: bare `dpspice <netlist>` implies `run`,
+  netlist arguments fall back to the bundled examples by name, new
+  `dpspice examples` command, `validate --ref` resolves bundled `.raw`
+  references. Touches `src/dpspice/cli.py`, `tests/test_cli_contract.py`,
+  `README.md`, `CHANGELOG.md` only — **no engine files** (item 3's
+  byte-identity argument is unaffected; the golden regression tests pass).
+  Also fixes README's pre-existing claim that examples "resolve from any
+  working directory", which was previously untrue outside a checkout.
+
+Re-verified at `7edd594`: full suite **110 passed** (was 101; +9 CLI
+contract tests), protected files still untouched
+(`citation|zenodo|reproduc|golden|notebook|paper` grep of the changed-file
+list still matches nothing new), `main` still even with `origin/main` at
+`22ab0ca`, versions consistent (`pyproject.toml` = `__version__` =
+`CITATION.cff` = 1.0.5). The CHANGELOG `[Unreleased]` block and the §6
+release-notes draft both gained the CLI-ergonomics bullet.
 
 ## 7. Open maintainer decisions (nothing executed)
 

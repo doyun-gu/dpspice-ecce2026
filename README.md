@@ -303,6 +303,7 @@ any hybrid diode operating point against a transient reference.
 | `dpspice validate <netlist> --ref <ltspice.raw>` | Cross-validate vs an LTspice `.raw`; reports NRMSE / R². |
 | `dpspice bench` | Computational benchmark over the bundled examples. |
 | `dpspice reproduce` | List reproducible paper artifacts; `--table N` / `--figure N` to regenerate one. |
+| `dpspice suite` | Auto-generate circuit families and score each against an independent oracle (`--full` for the whole sweep). |
 | `dpspice examples [name] [--copy]` | List the bundled example netlists, print one, or copy one out to edit. |
 
 Every command accepts `--json` for machine-readable output. The banner and
