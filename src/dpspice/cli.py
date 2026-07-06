@@ -8,7 +8,9 @@ users clean, parseable output. ``--out result.json`` writes data only.
 from __future__ import annotations
 
 import json
+import os
 import sys
+from contextlib import ExitStack
 from typing import Optional
 
 try:
@@ -121,6 +123,66 @@ def _decisions_table(decisions) -> Table:
 
 
 # ----------------------------------------------------------------------
+# Bundled-example resolution
+#
+# The README promises the bundled examples "resolve from any working
+# directory". A local file always wins; only when the argument is not a file
+# on disk do we try the packaged examples — accepting the bare name
+# (`buck_sync.sp`), the extensionless name (`buck_sync`) and the README's
+# `examples/<name>` form. Multi-line arguments are netlist text and pass
+# through untouched.
+# ----------------------------------------------------------------------
+
+def _example_candidates(arg: str) -> list[str]:
+    name = arg.replace("\\", "/")
+    if name.startswith("examples/"):
+        name = name[len("examples/"):]
+    if "/" in name or name in ("", ".", ".."):
+        return []
+    if "." in name:
+        return [name]
+    return [name + ext for ext in (".sp", ".cir", ".net", ".raw")]
+
+
+def _find_example(arg: str) -> Optional[str]:
+    """Return the bundled-example name `arg` refers to, or None."""
+    candidates = _example_candidates(arg)
+    if not candidates:
+        return None
+    from .examples import list_examples
+    names = set(list_examples())
+    for cand in candidates:
+        if cand in names:
+            return cand
+    return None
+
+
+def _resolve_netlist(netlist: str) -> str:
+    """Resolve a netlist argument, falling back to the bundled examples."""
+    if "\n" in netlist or os.path.isfile(netlist):
+        return netlist
+    name = _find_example(netlist)
+    if name is None:
+        return netlist
+    err.print(Text(f"note: using bundled example {name}", style="dim"))
+    from .examples import example_text
+    return example_text(name)
+
+
+def _resolve_ref(ref: Optional[str], stack: ExitStack) -> Optional[str]:
+    """Resolve a --ref argument; bundled binaries need a real path, so the
+    materialised file is kept alive on `stack` for the duration of the run."""
+    if ref is None or os.path.isfile(ref):
+        return ref
+    name = _find_example(ref)
+    if name is None:
+        return ref
+    err.print(Text(f"note: using bundled example {name}", style="dim"))
+    from .examples import example_path
+    return stack.enter_context(example_path(name))
+
+
+# ----------------------------------------------------------------------
 # info
 # ----------------------------------------------------------------------
 
@@ -136,7 +198,7 @@ def info(
     """Parse only: report MNA states, detected mode, omega, devices. No solve."""
     banner(quiet or json_out, no_banner)
     try:
-        result = api.load(netlist).info(mode=mode, omega=omega)
+        result = api.load(_resolve_netlist(netlist)).info(mode=mode, omega=omega)
     except DpspiceError as exc:
         _fail(exc)
 
@@ -236,7 +298,7 @@ def run(
                 f"--mode {mode} and --analysis {analysis} disagree; pass one."))
         mode = analysis
     try:
-        ckt = api.load(netlist)
+        ckt = api.load(_resolve_netlist(netlist))
         if chrome:
             with err.status("[cyan]Parsing + stamping MNA…", spinner="dots"):
                 preview = ckt.info(mode=mode, omega=omega)
@@ -357,7 +419,7 @@ def route(
     """
     banner(quiet or json_out, no_banner)
     try:
-        table = api.route(netlist)
+        table = api.route(_resolve_netlist(netlist))
     except DpspiceError as exc:
         _fail(exc)
 
@@ -413,13 +475,16 @@ def validate(
     chrome = _interactive(quiet or json_out)
     banner(quiet or json_out, no_banner=False)
     try:
-        if chrome and ref is None:
-            with err.status("[cyan]Running ngspice reference + DPSpice…", spinner="dots"):
-                report = api.load(netlist).validate(ref=ref, mode=mode, harmonics=harmonics,
-                                                    omega=omega, keep_raw=keep_raw).to_dict()
-        else:
-            report = api.load(netlist).validate(ref=ref, mode=mode, harmonics=harmonics,
-                                                omega=omega, keep_raw=keep_raw).to_dict()
+        with ExitStack() as stack:
+            source = _resolve_netlist(netlist)
+            ref = _resolve_ref(ref, stack)
+            if chrome and ref is None:
+                with err.status("[cyan]Running ngspice reference + DPSpice…", spinner="dots"):
+                    report = api.load(source).validate(ref=ref, mode=mode, harmonics=harmonics,
+                                                       omega=omega, keep_raw=keep_raw).to_dict()
+            else:
+                report = api.load(source).validate(ref=ref, mode=mode, harmonics=harmonics,
+                                                   omega=omega, keep_raw=keep_raw).to_dict()
     except DpspiceError as exc:
         _fail(exc)
 
@@ -687,10 +752,104 @@ def _render_suite(report: dict) -> None:
 
 
 # ----------------------------------------------------------------------
+# examples
+# ----------------------------------------------------------------------
+
+@app.command()
+def examples(
+    name: Optional[str] = typer.Argument(
+        None, help="Bundled example to print (e.g. buck_sync.sp, or just buck_sync). "
+                   "Omit to list all of them."),
+    copy: bool = typer.Option(
+        False, "--copy",
+        help="Write the example to the current directory instead of printing it "
+             "(required for the binary .raw references)."),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Essential output only."),
+    no_banner: bool = typer.Option(False, "--no-banner", help="Drop the startup banner."),
+    json_out: bool = typer.Option(False, "--json", help="Emit the listing as JSON to stdout."),
+):
+    """List the bundled example netlists, print one, or copy one out to edit."""
+    from .examples import example_path, example_text, list_examples
+
+    if name is not None:
+        resolved = _find_example(name)
+        if resolved is None:
+            _fail(DpspiceError(
+                f"No bundled example matches {name!r}. "
+                f"Available: {', '.join(list_examples())}."))
+        if copy:
+            dest = os.path.join(os.getcwd(), resolved)
+            if os.path.exists(dest):
+                _fail(DpspiceError(f"Refusing to overwrite existing file: {dest}"))
+            import shutil
+            with example_path(resolved) as src:
+                shutil.copyfile(src, dest)
+            err.print(Text(f"  ✓ Wrote {dest}", style="green"))
+            return
+        if resolved.endswith(".raw"):
+            _fail(DpspiceError(
+                f"{resolved} is a binary reference; use "
+                f"`dpspice examples {resolved} --copy` to extract it."))
+        # Raw text on stdout so it can be piped or redirected to a file.
+        _line(example_text(resolved).rstrip("\n"))
+        return
+
+    banner(quiet or json_out, no_banner)
+    rows = []
+    for n in list_examples():
+        if n.endswith(".raw"):
+            title = "binary reference (LTspice/ngspice .raw)"
+        else:
+            first = example_text(n).strip().splitlines()
+            title = first[0].lstrip("* ").strip() if first else ""
+        rows.append({"name": n, "title": title})
+
+    if json_out:
+        out.print_json(json.dumps(rows))
+        return
+    if quiet:
+        for r in rows:
+            _line(f"{r['name']}: {r['title']}")
+        return
+    t = Table(title="Bundled examples", title_style="bold",
+              show_header=True, header_style="bold")
+    t.add_column("name"); t.add_column("title")
+    for r in rows:
+        style = "dim" if r["name"].endswith(".raw") else ""
+        t.add_row(Text(r["name"], style=style) if style else r["name"], r["title"])
+    out.print(t)
+    out.print(Text("Run one from anywhere:  dpspice run buck_sync.sp --analysis hb --K 7",
+                   style="dim"))
+
+
+# ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
 
+def _default_to_run(argv: list[str]) -> bool:
+    """True when the first CLI token is a netlist, not a command.
+
+    Makes ``dpspice <file.sp>`` (the drag-a-file-into-the-terminal form) behave
+    as ``dpspice run <file.sp>``. Only path-shaped tokens qualify — anything
+    matching a registered command or option is left alone.
+    """
+    if not argv or argv[0].startswith("-"):
+        return False
+    commands = {c.callback.__name__ for c in app.registered_commands}
+    if argv[0] in commands:
+        return False
+    tok = argv[0]
+    return (os.path.isfile(tok)
+            or tok.lower().endswith((".sp", ".cir", ".net"))
+            or _find_example(tok) is not None)
+
+
 def main() -> None:  # entry point
+    if _default_to_run(sys.argv[1:]):
+        if sys.stderr.isatty():
+            print(f"note: no command given — running `dpspice run {sys.argv[1]}`",
+                  file=sys.stderr)
+        sys.argv.insert(1, "run")
     app()
 
 

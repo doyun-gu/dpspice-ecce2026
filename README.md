@@ -33,11 +33,22 @@ pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.gi
 # 2. Confirm it is on your PATH
 dpspice --version          # -> 1.0.5
 
-# 3. Inspect a circuit (what will it decide?) ...
-dpspice info  examples/rlc.sp
+# 3. See what ships with the package ...
+dpspice examples
 
-# 4. ... then simulate it
-dpspice run   examples/rlc.sp
+# 4. ... inspect a circuit (what will it decide?) ...
+dpspice info rlc.sp
+
+# 5. ... then simulate it
+dpspice run rlc.sp
+```
+
+For your own netlists the command name is optional — `dpspice run` is implied
+when the first argument is a netlist file, so dragging a file into the
+terminal after typing `dpspice ` is enough:
+
+```bash
+dpspice ~/Desktop/my_converter.sp
 ```
 
 `dpspice run` parses the netlist, announces every auto-decision, solves, and
@@ -60,8 +71,13 @@ prints a per-node summary:
 └──────┴──────────┴────────┴────────┘
 ```
 
-The bundled `examples/` netlists ship inside the package, so they resolve from
-any working directory. Add `--out result.json` to save the full waveforms, or
+The bundled example netlists ship inside the package, so they resolve from any
+working directory — as the bare name (`rlc.sp`), the extensionless name
+(`rlc`), or the `examples/rlc.sp` form. A local file of the same name always
+wins; when the bundled copy is used the CLI says so on stderr. `dpspice
+examples` lists them, `dpspice examples <name>` prints one, and
+`dpspice examples <name> --copy` writes an editable copy to the current
+directory. Add `--out result.json` to save the full waveforms, or
 `--json` for machine-readable output (see [Commands](#commands)). On a bare
 `pipx install` (no `[cli]`), the `dpspice` command prints a one-line hint to add
 the CLI extras; `import dpspice` works either way.
@@ -287,10 +303,15 @@ any hybrid diode operating point against a transient reference.
 | `dpspice validate <netlist> --ref <ltspice.raw>` | Cross-validate vs an LTspice `.raw`; reports NRMSE / R². |
 | `dpspice bench` | Computational benchmark over the bundled examples. |
 | `dpspice reproduce` | List reproducible paper artifacts; `--table N` / `--figure N` to regenerate one. |
+| `dpspice examples [name] [--copy]` | List the bundled example netlists, print one, or copy one out to edit. |
 
 Every command accepts `--json` for machine-readable output. The banner and
 spinners auto-disable when stdout is not a TTY; `--quiet` / `--no-banner`
 force calm output, and `--out` writes data only.
+
+`dpspice <netlist>` with no command runs it (`run` is implied for a
+path-shaped first argument), and any `<netlist>` argument that is not a file
+on disk falls back to the bundled examples by name.
 
 ## Reproducing the paper
 

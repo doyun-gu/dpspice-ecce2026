@@ -8,6 +8,18 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **CLI ergonomics**: `dpspice <netlist>` with no command now implies `run`
+  (drag a file into the terminal after typing `dpspice ` and press Enter);
+  a `<netlist>` argument that is not a file on disk falls back to the
+  bundled examples by name (`buck_sync.sp`, `buck_sync`, or
+  `examples/buck_sync.sp` — a local file always wins, and the substitution
+  is announced on stderr); and a new `dpspice examples` command lists the
+  bundled netlists, prints one, or copies one out to edit (`--copy`).
+  `dpspice validate --ref` resolves the bundled `.raw` references the same
+  way. This makes the README's "examples resolve from any working
+  directory" claim true — previously `dpspice run examples/rlc.sp` only
+  worked from a repository checkout.
+
 - **Switched-linear pipeline** (`dpspice.switching`). Gate-driven switches
   (`Sxxx n+ n- nc+ nc- MODEL` with `.model SW(Ron= Roff= Vt= [Vh=])`) are
   now first-class netlist elements. A router classifies every element
