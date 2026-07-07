@@ -91,7 +91,7 @@ mode:
 git clone https://github.com/doyun-gu/dpspice-ecce2026
 cd dpspice-ecce2026
 python -m venv .venv && source .venv/bin/activate
-pip install -e .[cli]      # library + the `dpspice` command-line interface
+pip install -e ".[cli]"    # library + the `dpspice` command-line interface
 ```
 
 Requires Python 3.10+. The **core** (`pip install -e .`) pulls only NumPy,
@@ -116,7 +116,7 @@ paper's headline numbers are frozen as a versioned golden baseline and
 re-checked on every run.
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 pytest                  # golden regression + determinism + error catalogue
 dpspice suite --quick   # real engine cross-validated against ngspice
 ```
@@ -130,7 +130,7 @@ paper text — recorded as findings, never silently patched.
 ## Notebooks
 
 Five worked examples live in [`notebooks/`](notebooks/), runnable after
-`pip install dpspice[viz]`: quickstart, envelope-vs-classical speedup,
+`pip install "dpspice[viz]"`: quickstart, envelope-vs-classical speedup,
 cross-validation against ngspice (with a bundled `.raw` fallback), the nonlinear
 harmonic-balance path, and scaling. They ship with rendered outputs; see
 [`notebooks/README.md`](notebooks/README.md) for the re-execute command.
