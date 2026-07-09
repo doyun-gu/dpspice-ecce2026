@@ -1,29 +1,27 @@
 # Switched-linear pipeline validation report
 
-Independent verification of the `feature/switched-linear` branch (integration
-commit `f21fbb7`) against `main` (`22ab0ca`). The implementation was treated as
-untrusted; the goal was to find where it breaks. Findings were recorded, then
-fixed in separate commits, then the affected checks were re-run.
+Independent verification of the switched-linear pipeline released in v1.1.0.
+The implementation was treated as untrusted; the goal was to find where it
+breaks. Findings were recorded, fixed in separate commits, and the affected
+checks re-run. Evidence below was produced at integration commit `f21fbb7`
+against the v1.0.5 baseline (`22ab0ca`); suite counts are those observed
+during the campaign, before the CLI-ergonomics tests landed.
 
-**Recommendation: GO for the gated-switch paths (LTP and envelope), conditional
-GO for the hybrid diode path**, for merge to `main` after the camera-ready date.
 The LTP and envelope paths are exact and robust across the full matrix. The
 hybrid NR-HB (diode) path is correct where it converges and fails loudly where
-it does not; plain Newton is fragile in the harmonic count, and a source/Gmin
-continuation now closes every recorded stall (§7 table, 14/14 cells). The path
-should still be labelled experimental until the continuation has seen a wider
-circuit population. No paper-reproduction
-path is touched (verified by hash, below).
+it does not: plain Newton is fragile in the harmonic count, and a source/Gmin
+continuation closes every recorded stall (§7 table, 14/14 cells). That path
+therefore ships labelled experimental, pending a wider circuit population. No
+paper-reproduction path is touched (verified by hash, below).
 
 ## Preconditions
 
 | Check | Result |
 |---|---|
-| Branch `feature/switched-linear` checked out | yes |
 | Full suite green before changes | 84 passed |
 | Full suite green after fixes | 88 passed |
-| `git diff --stat main` on engine reproduction paths | only additive: `hb_solver.py` (+X0 kwarg, byte-identical default), `netlist_parser.py` (+`S` parse branch, unreachable for rectifier/RLC) |
-| Rectifier solution byte-identical to main | yes, SHA256 `3048409b…086da19` on both (see §7) |
+| Engine reproduction paths vs the v1.0.5 baseline | only additive: `hb_solver.py` (+X0 kwarg, byte-identical default), `netlist_parser.py` (+`S` parse branch, unreachable for rectifier/RLC) |
+| Rectifier solution byte-identical to the baseline | yes, SHA256 `3048409b…086da19` on both (see §7) |
 
 ## 1. Netlist matrix
 
@@ -215,7 +213,7 @@ verdict was always correct.
 
 | Path | Time |
 |---|---|
-| RLC paper benchmark (non-switching) | 278 ms (byte-identical code path to main, no regression possible beyond a per-element branch check) |
+| RLC paper benchmark (non-switching) | 278 ms (byte-identical code path to the v1.0.5 baseline, no regression possible beyond a per-element branch check) |
 | LTP boost_sync K=15 | 1.7 ms (single linear solve) |
 | envelope boost_sync K=5 | 4.5 ms |
 | hybrid boost_async K=20 | 56 ms (Newton) |
@@ -305,9 +303,9 @@ findings (Finding F2).
   experimental label on the hybrid path stays.
 - **Documentation framing — FIXED.** O(1/K) now reads as a general LTP-path
   property at stiff switched nodes, duty-dependent, quoted at the filtered node.
-- **Warm-start X0 default — byte-identical to main.** Rectifier benchmark over
-  {C=0, 1µF, 10µF} × {K=7,15}: identical SHA256 and identical iteration counts /
-  residuals on both branches.
+- **Warm-start X0 default — byte-identical to the baseline.** Rectifier benchmark
+  over {C=0, 1µF, 10µF} × {K=7,15}: identical SHA256 and identical iteration
+  counts / residuals before and after.
 
 ## Findings ledger
 
@@ -325,10 +323,10 @@ findings (Finding F2).
 Supporting commits: tests `4f6f7d7`, LTspice assets `2e15899`, buck-boost
 example `03b06d6`.
 
-## Residual risk for the merge decision
+## Residual risk
 
 The hybrid diode path remains the least mature surface, but its two recorded
-risks have narrowed since this section was first written. (a) The K-fragility
+risks narrowed over the course of the campaign. (a) The K-fragility
 is closed operationally: the source/Gmin continuation converges every recorded
 stall (14/14 cells in the §7 table) and byte-identical behaviour on
 already-converging cases is asserted in the suite. What remains is that the

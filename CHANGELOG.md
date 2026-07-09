@@ -4,7 +4,7 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-07-09
 
 ### Added
 
@@ -268,4 +268,10 @@ result out, with the solver auto-decided, announced, and overridable.
   in this release; the pure-Python backend is the shipping path. See the README
   Roadmap.
 
+[1.1.0]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.1.0
+[1.0.5]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.5
+[1.0.4]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.4
+[1.0.3]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.3
+[1.0.2]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.2
+[1.0.1]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.1
 [1.0.0]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.0

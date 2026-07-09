@@ -31,7 +31,7 @@ manage), then run a bundled example:
 pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git"
 
 # 2. Confirm it is on your PATH
-dpspice --version          # -> 1.0.5
+dpspice --version          # -> 1.1.0
 
 # 3. See what ships with the package ...
 dpspice examples
@@ -410,7 +410,7 @@ always resolves to the latest archived version.
   author    = {Gu, Doyun and Zhang, Cheng},
   title     = {{DPSpice}: Topology-Independent Dynamic-Phasor Circuit Simulation},
   publisher = {Zenodo},
-  version   = {v1.0.5},
+  version   = {v1.1.0},
   doi       = {10.5281/zenodo.21085058},
   url       = {https://doi.org/10.5281/zenodo.21085058},
   year      = {2026}
