@@ -612,6 +612,8 @@ class LTSpiceNetlistParser:
             return self._parse_source(tokens, 'I')
         elif prefix == 'K':
             return self._parse_coupling(tokens)
+        elif prefix == 'S':
+            return self._parse_switch(tokens)
         elif prefix in ('D', 'Q', 'M', 'X'):
             return self._parse_semiconductor(tokens, prefix)
         else:
@@ -687,6 +689,23 @@ class LTSpiceNetlistParser:
             prefix='K', name=name,
             nodes=[l1_name, l2_name],  # these are inductor names, not nodes
             value=value,
+        )
+
+    def _parse_switch(self, tokens: List[str]) -> NetlistElement:
+        """Parse a voltage-controlled switch: Sxxx n+ n- nc+ nc- MODEL.
+
+        nodes[0:2] is the power branch, nodes[2:4] the controlling pair. The
+        SW model card is kept raw in ParsedNetlist.models; interpretation
+        (Ron/Roff/Vt and gate tracing) happens in the switching router, not
+        here, because whether the switch is LTP-eligible depends on the whole
+        netlist, not on this line alone.
+        """
+        name = tokens[0]
+        nodes = tokens[1:5] if len(tokens) >= 5 else tokens[1:]
+        model = tokens[5] if len(tokens) > 5 else ''
+        return NetlistElement(
+            prefix='S', name=name,
+            nodes=nodes, model=model,
         )
 
     def _parse_semiconductor(self, tokens: List[str], prefix: str) -> NetlistElement:

@@ -31,13 +31,24 @@ manage), then run a bundled example:
 pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git"
 
 # 2. Confirm it is on your PATH
-dpspice --version          # -> 1.0.5
+dpspice --version          # -> 1.1.0
 
-# 3. Inspect a circuit (what will it decide?) ...
-dpspice info  examples/rlc.sp
+# 3. See what ships with the package ...
+dpspice examples
 
-# 4. ... then simulate it
-dpspice run   examples/rlc.sp
+# 4. ... inspect a circuit (what will it decide?) ...
+dpspice info rlc.sp
+
+# 5. ... then simulate it
+dpspice run rlc.sp
+```
+
+For your own netlists the command name is optional — `dpspice run` is implied
+when the first argument is a netlist file, so dragging a file into the
+terminal after typing `dpspice ` is enough:
+
+```bash
+dpspice ~/Desktop/my_converter.sp
 ```
 
 `dpspice run` parses the netlist, announces every auto-decision, solves, and
@@ -60,8 +71,13 @@ prints a per-node summary:
 └──────┴──────────┴────────┴────────┘
 ```
 
-The bundled `examples/` netlists ship inside the package, so they resolve from
-any working directory. Add `--out result.json` to save the full waveforms, or
+The bundled example netlists ship inside the package, so they resolve from any
+working directory — as the bare name (`rlc.sp`), the extensionless name
+(`rlc`), or the `examples/rlc.sp` form. A local file of the same name always
+wins; when the bundled copy is used the CLI says so on stderr. `dpspice
+examples` lists them, `dpspice examples <name>` prints one, and
+`dpspice examples <name> --copy` writes an editable copy to the current
+directory. Add `--out result.json` to save the full waveforms, or
 `--json` for machine-readable output (see [Commands](#commands)). On a bare
 `pipx install` (no `[cli]`), the `dpspice` command prints a one-line hint to add
 the CLI extras; `import dpspice` works either way.
@@ -75,7 +91,7 @@ mode:
 git clone https://github.com/doyun-gu/dpspice-ecce2026
 cd dpspice-ecce2026
 python -m venv .venv && source .venv/bin/activate
-pip install -e .[cli]      # library + the `dpspice` command-line interface
+pip install -e ".[cli]"    # library + the `dpspice` command-line interface
 ```
 
 Requires Python 3.10+. The **core** (`pip install -e .`) pulls only NumPy,
@@ -100,7 +116,7 @@ paper's headline numbers are frozen as a versioned golden baseline and
 re-checked on every run.
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 pytest                  # golden regression + determinism + error catalogue
 dpspice suite --quick   # real engine cross-validated against ngspice
 ```
@@ -114,7 +130,7 @@ paper text — recorded as findings, never silently patched.
 ## Notebooks
 
 Five worked examples live in [`notebooks/`](notebooks/), runnable after
-`pip install dpspice[viz]`: quickstart, envelope-vs-classical speedup,
+`pip install "dpspice[viz]"`: quickstart, envelope-vs-classical speedup,
 cross-validation against ngspice (with a bundled `.raw` fallback), the nonlinear
 harmonic-balance path, and scaling. They ship with rendered outputs; see
 [`notebooks/README.md`](notebooks/README.md) for the re-execute command.
@@ -141,6 +157,7 @@ R2 N003 0    2k
 | `V`, `I` sources | `DC`, `SINE(off ampl freq)`, `PULSE(...)`, `PWL(...)` |
 | `K` | mutual inductive coupling (transformers, WPT links) |
 | `D` | diode (`.model D(Is=... N=...)`); the **only** nonlinear device in v1 |
+| `S` | gate-driven switch `Sxxx n+ n- nc+ nc- MODEL` with `.model SW(Ron=... Roff=... Vt=... [Vh=...])`; the gate must trace to an independent `PULSE` source (see *Switched circuits*) |
 | `.tran`, `.ic`, `.param`, `.model`, `.options`, `.end`, `.backanno` | `.options` / `.backanno` are tolerated; `{expr}` parameter expressions are evaluated |
 
 **Not yet supported** (these parse but the solver rejects them with a clear
@@ -169,19 +186,133 @@ guesses either: it **decides, announces, and lets you override**.
 
 Run `dpspice info <netlist>` to see every decision *before* solving.
 
+## Switched circuits
+
+Netlists containing gate-driven switches (`S` elements) route through a
+switched-linear pipeline instead of the transient solvers. The router
+classifies every element and prints its decision:
+
+```bash
+dpspice route examples/buck_sync.sp          # routing table, no solve
+dpspice run examples/buck_sync.sp --analysis hb --K 7        # LTP steady state
+dpspice run examples/buck_sync.sp --analysis envelope --K 5 \
+    --horizon 2m --dt 2u                     # envelope-bank transient
+```
+
+**Routing rule.** A switch is LTP-routable when its controlling pair traces
+to an independent `PULSE` source that is not part of the power path, so the
+gate waveform is known a priori as a `(duty, f_sw, phase)` triple. Inverted
+gate trains fold to the complement duty and shifted phase automatically.
+State-dependent gates (the controlling pair sits in the power path) and
+non-`PULSE` gates are refused with an error naming the element and the
+reason; those circuits belong on the Newton or transient path. `dpspice
+route` exits nonzero when any element is refused.
+
+**Three analysis paths**, chosen by what the router finds:
+
+* **LTP harmonic balance** (`--analysis hb`, gated switches only). Each
+  switch becomes a constant Toeplitz block in the harmonic-balance operator,
+  so the periodic steady state is a *single linear solve* — no Newton
+  iteration, no time stepping. Per-harmonic tables are printed alongside the
+  usual waveform summary.
+* **Envelope bank** (`--analysis envelope`, gated switches only). The same
+  constant coupling matrices drive a fixed-step trapezoidal integration of
+  the harmonic envelopes, capturing the start-up transient. `--horizon`
+  defaults to the `.tran` window; `|X0|` and `|X1|` envelopes are exported
+  with the waveforms.
+* **Hybrid NR-HB** (`--analysis hb`, switches plus diodes) — **experimental**.
+  Switch blocks are assembled once outside the Newton loop; only the diode
+  blocks are refreshed per iteration. The result matches the unmodified
+  Newton solver to solver precision (asserted in the test suite), but the
+  path has been validated on a narrower circuit population than the LTP and
+  envelope paths — see the limitations below and `VALIDATION_REPORT.md`.
+
+The bundled examples cover all three paths: `buck_sync.sp`, `boost_sync.sp`,
+`buckboost_sync.sp` and `src_bridge.sp` (LTP and envelope), `boost_async.sp`,
+`boost_async_snubber.sp` and `hybrid_mix.sp` (hybrid). The Python API mirrors the CLI: `dpspice.route(netlist)`,
+`dpspice.solve_hb(netlist, K=7)`, `dpspice.solve_envelope(netlist, K=5,
+horizon="2m")`.
+
+**Limitations.** The LTP formulation assumes continuous conduction (CCM):
+the switch conductance pattern must equal the gate pattern. Dead-time
+intervals, discontinuous conduction (DCM) and state-dependent commutation
+fall outside its validity — use the Newton (`hb` with diode formulations) or
+transient path for those. A diode converter driven to light load enters DCM;
+the hybrid path will either track the new operating point or fail to converge
+loudly, but the averaged interpretation no longer holds there.
+
+*DC truncation bias at stiff switched nodes.* Whenever a switch commutates
+against a node held stiff between edges (a capacitor-clamped output, as in the
+boost and inverting buck-boost sync-switch), the DC component of that node
+converges only as O(1/K): the truncated switching function rings (Gibbs) across
+the clamped off-state voltage. The error is duty-dependent. At moderate duty it
+sits inside the ripple band at the default harmonic count (the synchronous boost
+at d = 0.6 is inside its ripple band by K = 20), but at high duty (d ≳ 0.7 on
+the boost and buck-boost) the k = 0 error *exceeds* the ripple band and only
+closes as K grows (Richardson extrapolation recovers the ideal V_in/(1−d) less
+the conduction drop). Quote accuracy at the filtered node of interest, not at
+the switched node, and raise K when the k = 0 value matters. This is a general
+property of the LTP path at stiff switched nodes, not specific to one example;
+switches that feed an inductor (the buck sync switch) do not carry it.
+Two opt-in mitigations ship for the LTP path: `--bias-correction` applies a
+closed-form, parameter-free correction of the O(1/K) gate-tail defect
+(derivation and validation in `validation/bias_closed_form.md`; structural
+zero on the buck, results labelled `ltp+bias`), and `--richardson` solves at
+K and 2K and extrapolates the shared harmonics (results labelled
+`ltp+richardson`, both solve times reported). They correct the same defect
+and are mutually exclusive.
+
+*The bias correction is contractive only in a bounded regime.* The closed-form
+correction is applied as a fixed-point iteration, and its iteration matrix
+scales with the switch conductance swing times the gate tail times the
+circuit's response to the k = 0 defect. A stiff switched node at high duty —
+a low R·C_out·f_sw output around d ≳ 0.7 — can put the spectral radius above
+one at any practical K, and the iteration then *diverges* rather than
+degrades. This is a general property of the fixed point, not of one circuit.
+Non-convergence is always reported: `converged=False` on the result object,
+and the CLI/dispatch layer raises a typed error instead of printing a
+corrected value — a non-converged correction must never be used. In that
+regime `--richardson` (which corrects the same defect without a fixed point)
+and raising K on the plain path remain available; a per-interval exact
+analysis covering it exists as an exploration prototype
+(`exploration/basis-selection/`) and is not part of the package.
+
+*Hard diode commutation is convergence-fragile.* When a diode commutates on a
+hard-switched node, the truncated switch node chatters across the junction
+threshold and the plain hybrid Newton residual does not decrease monotonically
+with K: a given circuit may converge at one harmonic count and stall at a
+neighbouring one. When that happens the solver automatically engages Newton
+continuation — geometric source stepping from 10% amplitude with adaptive
+step-back, then SPICE-style Gmin stepping — and records the rungs it took in
+the run record; cases plain Newton already solves are unaffected. With the
+continuation, `boost_async.sp` (the bare converter) and
+`boost_async_snubber.sp` (a 150 nF snubber that deliberately shifts the
+operating point upward) both converge across K = 10…40, and the bare DC
+approaches the transient reference 29.315 V first-order in K from above.
+Total non-convergence is still reported as a loud error, never a silent wrong
+answer, and a hybrid DC at moderate K still carries finite-K bias: validate
+any hybrid diode operating point against a transient reference.
+
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `dpspice run <netlist>` | Auto-decide and simulate. `--out result.json` saves waveforms. |
+| `dpspice route <netlist>` | Classify every element of a switched netlist (no solve). Nonzero exit if any element is refused. |
 | `dpspice info <netlist>` | Parse and report mode/omega/states/devices. No solve. |
 | `dpspice validate <netlist> --ref <ltspice.raw>` | Cross-validate vs an LTspice `.raw`; reports NRMSE / R². |
 | `dpspice bench` | Computational benchmark over the bundled examples. |
 | `dpspice reproduce` | List reproducible paper artifacts; `--table N` / `--figure N` to regenerate one. |
+| `dpspice suite` | Auto-generate circuit families and score each against an independent oracle (`--full` for the whole sweep). |
+| `dpspice examples [name] [--copy]` | List the bundled example netlists, print one, or copy one out to edit. |
 
 Every command accepts `--json` for machine-readable output. The banner and
 spinners auto-disable when stdout is not a TTY; `--quiet` / `--no-banner`
 force calm output, and `--out` writes data only.
+
+`dpspice <netlist>` with no command runs it (`run` is implied for a
+path-shaped first argument), and any `<netlist>` argument that is not a file
+on disk falls back to the bundled examples by name.
 
 ## Reproducing the paper
 
@@ -279,9 +410,13 @@ always resolves to the latest archived version.
   author    = {Gu, Doyun and Zhang, Cheng},
   title     = {{DPSpice}: Topology-Independent Dynamic-Phasor Circuit Simulation},
   publisher = {Zenodo},
-  version   = {v1.0.5},
+  version   = {v1.1.0},
   doi       = {10.5281/zenodo.21085058},
   url       = {https://doi.org/10.5281/zenodo.21085058},
   year      = {2026}
 }
 ```
+
+The switched-linear extension (gated switches, LTP/envelope/hybrid paths) is
+not covered by the ECCE paper above: a paper on it is in preparation. Until
+it is published, cite the software DOI for that functionality.

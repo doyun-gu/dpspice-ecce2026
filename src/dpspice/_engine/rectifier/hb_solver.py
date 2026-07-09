@@ -103,8 +103,14 @@ def _diode_jacobian(glist, K, n, N):
 # ---------------------------------------------------------------------------
 def solve_newton(hbnet: HBNet, diodes, f0, K, N=None,
                  amp_steps=4, k_continuation=True, tol=1e-10,
-                 max_iter=60, verbose=False):
-    """AFT Newton with source-stepping + K-continuation + damped step."""
+                 max_iter=60, verbose=False, X0=None):
+    """AFT Newton with source-stepping + K-continuation + damped step.
+
+    X0: optional warm-start iterate (stacked, length (2K+1)*n). A warm start
+    replaces both continuation safeguards -- Newton runs at the full K and the
+    full source amplitude from X0. Default (None) is byte-identical to the
+    original cold path.
+    """
     if isinstance(diodes, Diode):
         diodes = [diodes]
     w0 = 2 * np.pi * f0
@@ -113,8 +119,9 @@ def solve_newton(hbnet: HBNet, diodes, f0, K, N=None,
         N = aft.oversample_N(K)
 
     # K-continuation: solve at K1=1 first, zero-pad up to K
-    Korder = [1, K] if (k_continuation and K > 1) else [K]
-    X = None
+    Korder = [1, K] if (k_continuation and K > 1 and X0 is None) else [K]
+    X = None if X0 is None else np.asarray(X0, dtype=complex).reshape(-1)
+    Kprev = None
     total_iters = 0
     for Ki in Korder:
         Ni = aft.oversample_N(Ki)
@@ -122,10 +129,13 @@ def solve_newton(hbnet: HBNet, diodes, f0, K, N=None,
         Bfull, _ = _source_stack(hbnet, w0, Ki, Ni)
         if X is None:
             X = np.linalg.solve(Yb, -Bfull * 0.0)    # zero start (diode off)
-        else:
+        elif Kprev is not None:
             X = _zero_pad(X, Kprev, Ki, n)
         # source-stepping: ramp the excitation amplitude
-        alphas = np.linspace(1.0 / amp_steps, 1.0, amp_steps) if amp_steps > 1 else [1.0]
+        if X0 is not None:
+            alphas = [1.0]
+        else:
+            alphas = np.linspace(1.0 / amp_steps, 1.0, amp_steps) if amp_steps > 1 else [1.0]
         for alpha in alphas:
             B = Bfull * alpha
             for it in range(max_iter):

@@ -23,3 +23,7 @@ validation_runs/
 ngspice_tmp/
 results.json
 result.json
+
+# Research scaffolding for work not yet published. Deliberately untracked:
+# prototypes here would otherwise become a de-facto supported API surface.
+exploration/

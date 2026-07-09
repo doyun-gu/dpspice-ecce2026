@@ -27,7 +27,7 @@ reproduce them, point `dpspice validate --ref` at your own `.raw` / case files.
 ## How to reproduce
 
 ```bash
-pip install -e .[dev]           # core + CLI + MCP + test suite
+pip install -e ".[dev]"         # core + CLI + MCP + test suite
 # ngspice is an external binary (not a pip extra): brew install ngspice
 dpspice reproduce --table 3     # benchmark: state counts, solver choice, timings (Table III)
 dpspice reproduce --table 5     # rectifier accuracy vs bundled LTspice reference (Table V)
@@ -46,7 +46,7 @@ re-freeze path (`pytest tests/test_golden.py --update-golden`).
 |---|---|---|---|
 | Table III — computational benchmark + per-duration IDP-vs-TD accuracy/speedup (Table II) | `dpspice reproduce --table 3` | linear cases -> `td`/`idp`; rectifier cases -> `hb`, K=20, states=3. Plus `idp_vs_td_duration_sweep`: per-window NRMSE/R^2 and speedup (12/50/200 cycles). Timings machine-dependent (reported, not asserted); NRMSE/R^2 and speedup *trend* are frozen. | Yes |
 | IEEE-network speedup envelope (23-57x / 224-566x at T=1s/10s) | (needs IEEE case files) | not redistributed. The bundled RLC duration sweep reproduces the same *trend* (~tenfold per decade); see discrepancy below. | No — bring IEEE cases; RLC sweep is the offline proxy |
-| Table V — rectifier accuracy vs LTspice | `dpspice reproduce --table 5` | `worst_nrmse = 2.063e-3`, `min_r2 = 0.99997` against the bundled `examples/rectifier_halfwave.raw` | Yes (reference bundled) |
+| Table V — rectifier accuracy vs LTspice | `dpspice reproduce --table 5` | three rows vs the bundled `.raw` references: resistive K=15 NRMSE `4.086e-3` (0.41%), RC-mild K=30 `1.340e-3` (0.13%), RC-strong K=40 `1.375e-3` (0.14%); `worst_nrmse = 4.086e-3`, min R² `0.99989` (golden entries `rectifier_table5_*`) | Yes (references bundled) |
 | Figure 6 — rectifier waveform | `dpspice reproduce --figure 6` | HB reconstructed V(out) samples (waveform JSON) | Yes |
 | Rectifier accuracy at K=40 | `dpspice validate examples/rectifier_halfwave.sp --ref examples/rectifier_halfwave.raw --harmonics 40` | `worst_nrmse = 5.966e-4` | Yes (reference bundled) |
 | Conduction angle vs smoothing cap | `dpspice run examples/rectifier_*.sp` (summary field) | half-wave 173.7 deg, C=10uF 100.5 deg, C=100uF 47.1 deg | Yes |

@@ -50,6 +50,21 @@ def _coerce_omega(omega: Optional[Union[Number, str]]) -> Optional[float]:
         raise DpspiceError(f"Could not parse omega '{omega}' (try e.g. 92.3k or 50).") from exc
 
 
+def _coerce_seconds(value: Optional[Union[Number, str]],
+                    what: str) -> Optional[float]:
+    """Accept a duration as seconds (number) or a SPICE-suffixed string ('2m')."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    from netlist_parser import parse_spice_value
+    try:
+        return float(parse_spice_value(value))
+    except Exception as exc:
+        raise DpspiceError(f"Could not parse {what} '{value}' "
+                           f"(try e.g. 2m or 0.002).") from exc
+
+
 # ----------------------------------------------------------------------
 # Result wrappers
 # ----------------------------------------------------------------------
@@ -195,13 +210,34 @@ class Circuit:
             omega: Optional[Union[Number, str]] = None,
             tol: Optional[float] = None,
             with_waveforms: bool = True,
-            with_envelopes: bool = False) -> Result:
-        """Auto-decide and simulate. Returns a :class:`Result`."""
+            with_envelopes: bool = False,
+            horizon: Optional[Union[Number, str]] = None,
+            dt: Optional[Union[Number, str]] = None,
+            bias_correction: bool = False,
+            richardson: bool = False) -> Result:
+        """Auto-decide and simulate. Returns a :class:`Result`.
+
+        ``horizon`` and ``dt`` apply to the switched-linear envelope mode only
+        (seconds, SPICE suffixes accepted as strings). ``bias_correction``
+        applies the closed-form O(1/K) truncation-tail correction on the
+        gated-switch LTP path (``validation/bias_closed_form.md``);
+        ``richardson`` instead solves at K and 2K and extrapolates. The two
+        correct the same defect and cannot be combined.
+        """
         run = dispatch.run(self.netlist, mode=mode, harmonics=harmonics,
                            omega_hz=_coerce_omega(omega), tol=tol,
                            with_waveforms=with_waveforms,
-                           with_envelopes=with_envelopes)
+                           with_envelopes=with_envelopes,
+                           horizon_s=_coerce_seconds(horizon, "horizon"),
+                           dt_s=_coerce_seconds(dt, "dt"),
+                           bias_correction=bias_correction,
+                           richardson=richardson)
         return Result(run)
+
+    # -- switched-linear routing ------------------------------------------
+    def route(self):
+        """Route a switched netlist. Returns a ``switching.RoutingTable``."""
+        return dispatch.route(self.netlist)
 
     # -- cross-validate --------------------------------------------------
     def validate(self, ref: Optional[str] = None, mode: str = "auto",
@@ -241,6 +277,25 @@ def run(source: str, **kwargs) -> Result:
 def validate(source: str, ref: Optional[str] = None, **kwargs) -> Validation:
     """Convenience: ``load(source).validate(ref, **kwargs)``."""
     return load(source).validate(ref=ref, **kwargs)
+
+
+def route(source: str):
+    """Route a switched netlist. Returns a ``switching.RoutingTable``."""
+    return load(source).route()
+
+
+def solve_hb(source: str, K: Optional[int] = None, **kwargs) -> Result:
+    """Harmonic-balance steady state (LTP or hybrid for switched netlists)."""
+    return load(source).run(mode="hb", harmonics=K, **kwargs)
+
+
+def solve_envelope(source: str, K: Optional[int] = None,
+                   horizon: Optional[Union[Number, str]] = None,
+                   dt: Optional[Union[Number, str]] = None,
+                   **kwargs) -> Result:
+    """Switched-linear envelope bank transient. Horizon defaults to ``.tran``."""
+    return load(source).run(mode="envelope", harmonics=K,
+                            horizon=horizon, dt=dt, **kwargs)
 
 
 def backend() -> str:

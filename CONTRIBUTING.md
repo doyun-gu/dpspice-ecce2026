@@ -10,10 +10,10 @@ user-facing is an opt-in extra:
 
 ```bash
 pip install -e .            # library core: `import dpspice`, the Python API
-pip install -e .[cli]       # the `dpspice` command-line interface
-pip install -e .[mcp]       # the `dpspice-mcp` MCP server
-pip install -e .[viz]       # matplotlib, for the notebooks
-pip install -e .[dev]       # everything needed to run the test suite + CI
+pip install -e ".[cli]"     # the `dpspice` command-line interface
+pip install -e ".[mcp]"     # the `dpspice-mcp` MCP server
+pip install -e ".[viz]"     # matplotlib, for the notebooks
+pip install -e ".[dev]"     # everything needed to run the test suite + CI
 ```
 
 The cross-validation oracle uses **ngspice**, an external binary installed
@@ -26,7 +26,7 @@ For a bit-for-bit reproduction of the stack the paper numbers were validated
 against, install with the pinned lock as a constraints file:
 
 ```bash
-pip install -e .[dev] -c requirements.lock
+pip install -e ".[dev]" -c requirements.lock
 ```
 
 `requirements.lock` pins the exact full dependency tree (numpy 2.5.0, scipy
@@ -37,7 +37,7 @@ the header in the file documents how.
 ## Running the tests
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 pytest                      # golden + determinism + error + reproduce-consistency
 dpspice suite --quick       # real engine vs ngspice across circuit families
 ```

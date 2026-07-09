@@ -4,6 +4,90 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-07-09
+
+### Added
+
+- **CLI ergonomics**: `dpspice <netlist>` with no command now implies `run`
+  (drag a file into the terminal after typing `dpspice ` and press Enter);
+  a `<netlist>` argument that is not a file on disk falls back to the
+  bundled examples by name (`buck_sync.sp`, `buck_sync`, or
+  `examples/buck_sync.sp` — a local file always wins, and the substitution
+  is announced on stderr); and a new `dpspice examples` command lists the
+  bundled netlists, prints one, or copies one out to edit (`--copy`).
+  `dpspice validate --ref` resolves the bundled `.raw` references the same
+  way. This makes the README's "examples resolve from any working
+  directory" claim true — previously `dpspice run examples/rlc.sp` only
+  worked from a repository checkout.
+
+- **Switched-linear pipeline** (`dpspice.switching`). Gate-driven switches
+  (`Sxxx n+ n- nc+ nc- MODEL` with `.model SW(Ron= Roff= Vt= [Vh=])`) are
+  now first-class netlist elements. A router classifies every element
+  (linear, source, gated switch, diode, gate drive) and extracts each
+  switch's `(duty, f_sw, phase)` triple from its independent `PULSE` gate
+  source, folding inverted trains to the complement duty. State-dependent
+  and non-`PULSE` gates are refused with an error naming the element and the
+  reason.
+- **Three switched analysis paths**: LTP harmonic balance (switches become
+  constant Toeplitz blocks, periodic steady state in one linear solve),
+  envelope-bank transient (fixed-step trapezoidal integration of the
+  harmonic envelopes over the constant coupling matrices), and hybrid NR-HB
+  (constant switch blocks assembled once outside the Newton loop, diode
+  blocks refreshed per iteration, with an optional clamped LTP warm start).
+  Hybrid and warm-started results match the unmodified Newton solver within
+  tolerance, asserted in the test suite.
+- **CLI**: `dpspice route <netlist>` renders the routing table (nonzero exit
+  plus the refusal reason when a netlist is not LTP-routable);
+  `dpspice run --analysis {hb,envelope} --K <n> [--horizon 2m] [--dt 2u]`
+  runs the new paths with per-harmonic output tables for HB and `|X0|`,
+  `|X1|` envelope export for the envelope mode. `--analysis` is an alias for
+  `--mode`; `--horizon` defaults to the `.tran` window.
+- **Python API**: `dpspice.route(netlist)` returning a `RoutingTable`,
+  `dpspice.solve_hb(netlist, K=...)` and
+  `dpspice.solve_envelope(netlist, K=..., horizon=..., dt=...)`, returning
+  the same `Result` objects as `run`.
+- **Examples**: `buck_sync.sp`, `boost_sync.sp`, `buckboost_sync.sp`,
+  `src_bridge.sp` (LTP and envelope paths), `boost_async.sp` (bare),
+  `boost_async_snubber.sp` (documented operating-point shift) and
+  `hybrid_mix.sp` (hybrid NR-HB path).
+- **Closed-form O(1/K) truncation-bias correction for the LTP path**
+  (`--bias-correction`, `solve_ltp(..., bias_correction=True)`). The DC
+  defect of the truncated switch spectrum is derived in closed form from the
+  gate tail (exact finite Parseval form, no fitted constants), embedded at
+  k = 0 through the switch incidence, and iterated to a self-consistent
+  fixed point. Parameter-free; structural zero on the buck; results
+  labelled `ltp+bias`. Derivation and validation in
+  `validation/bias_closed_form.md`. Off by default; refused (loudly) on the
+  hybrid and non-switched paths where the derivation does not apply. The
+  fixed point is contractive only in a bounded regime — a stiff switched
+  node at high duty (low R·C·f_sw) can sit outside it and the iteration
+  diverges rather than degrades (VALIDATION_REPORT.md, ledger B1);
+  non-convergence surfaces as `converged=False` plus a typed dispatch/CLI
+  error naming the regime, never a silently returned corrected value
+  (regression-tested).
+- **Richardson K-extrapolation for the LTP path** (`--richardson`,
+  `solve_ltp_richardson`). Solves at K and 2K and returns 2·X₂ₖ − Xₖ on the
+  shared harmonics (fine-only harmonics unextrapolated and labelled in the
+  per-harmonic table); both solve times reported in the run record.
+  Mutually exclusive with `--bias-correction` (same defect, would
+  double-count).
+- **Newton continuation for the hybrid NR-HB path.** When plain Newton
+  stalls (the recorded K-fragility on hard diode commutation),
+  `solve_hybrid` engages geometric source stepping (10% → 100%,
+  warm-started, adaptive step-back) and, if needed, SPICE-style Gmin
+  stepping on the node-voltage diagonals. Cases plain Newton already solves
+  are byte-identical (asserted); continuation rungs and iteration counts
+  surface as a run `Decision`. Both asynchronous-boost variants now
+  converge at every K ∈ {10…40} (previously snubbered K=20 only). The
+  hybrid path remains labelled experimental.
+- **External validation campaign** (`VALIDATION_REPORT.md`,
+  `validation/`): LTspice cross-validation decks with settled tails and
+  finite gate edges (Finding L1), an in-repo switched-DAE transient
+  reference (`validation/td_boost_async.py`) that corrected the
+  asynchronous-boost TD reference to 29.315 V bare / 31.094 V snubbered
+  (Finding L2), and duty/frequency/K validity matrices re-run with the
+  shipped bias correction.
+
 ## [1.0.5] - 2026-07-03
 
 ### Added
@@ -184,4 +268,10 @@ result out, with the solver auto-decided, announced, and overridable.
   in this release; the pure-Python backend is the shipping path. See the README
   Roadmap.
 
+[1.1.0]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.1.0
+[1.0.5]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.5
+[1.0.4]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.4
+[1.0.3]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.3
+[1.0.2]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.2
+[1.0.1]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.1
 [1.0.0]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.0

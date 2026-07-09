@@ -11,6 +11,10 @@ import json
 
 import pytest
 
+# Guard on the third-party `mcp` package first: importing dpspice.mcp_server
+# without it raises SystemExit (a CLI-friendly hint), which importorskip
+# cannot catch and which would abort pytest collection entirely.
+pytest.importorskip("mcp", reason="dpspice[mcp] extra not installed")
 mcp_server = pytest.importorskip("dpspice.mcp_server")
 from dpspice.examples import example_text  # noqa: E402
 

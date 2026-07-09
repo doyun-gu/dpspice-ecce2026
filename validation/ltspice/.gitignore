@@ -1,0 +1,5 @@
+# LTspice run products (regenerate per RUN.md)
+*.raw
+*.log
+*.db
+*.net

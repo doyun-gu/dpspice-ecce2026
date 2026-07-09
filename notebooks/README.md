@@ -3,7 +3,7 @@
 Five worked examples. Each runs end-to-end after only:
 
 ```bash
-pip install dpspice[viz]
+pip install "dpspice[viz]"
 ```
 
 `[viz]` adds matplotlib; the notebooks reach their data through bundled package
@@ -38,7 +38,7 @@ use_style, PALETTE, style_table`.
 To regenerate the outputs yourself you also need the notebook tooling:
 
 ```bash
-pip install dpspice[viz] jupyter nbconvert ipykernel
+pip install "dpspice[viz]" jupyter nbconvert ipykernel
 jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
 ```
 

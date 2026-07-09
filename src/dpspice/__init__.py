@@ -10,7 +10,7 @@ Importing this package is side-effect-free: it prints nothing, needs no
 terminal, and starts no solve. Interactive chrome (banners, spinners) lives
 only in the CLI layer (:mod:`dpspice.cli`).
 """
-__version__ = "1.0.5"
+__version__ = "1.1.0"
 
 from .api import (  # noqa: E402
     load,
@@ -18,6 +18,9 @@ from .api import (  # noqa: E402
     info,
     validate,
     backend,
+    route,
+    solve_hb,
+    solve_envelope,
     Circuit,
     Result,
     Validation,
@@ -36,6 +39,9 @@ __all__ = [
     "info",
     "validate",
     "backend",
+    "route",
+    "solve_hb",
+    "solve_envelope",
     "Circuit",
     "Result",
     "Validation",
