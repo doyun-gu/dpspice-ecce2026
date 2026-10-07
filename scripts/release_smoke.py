@@ -21,7 +21,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--expected-version", required=True)
+    parser.add_argument("--timeout", type=float, default=300,
+                        help="Maximum seconds per CLI command (default: 300)")
     args = parser.parse_args()
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive")
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
     cli = Path(sysconfig.get_path("scripts")) / (
@@ -34,16 +38,27 @@ def main() -> None:
         raise RuntimeError(f"Expected {args.expected_version}, installed {version}")
     env = os.environ.copy()
     env.pop("PYTHONPATH", None)
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS",
                  "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
         env[name] = "1"
     checks = []
 
     def run(name: str, *arguments: str, refusal: bool = False):
-        process = subprocess.run(
-            [str(cli), *arguments], cwd=out, env=env,
-            capture_output=True, text=True, timeout=120,
-        )
+        try:
+            process = subprocess.run(
+                [str(cli), *arguments], cwd=out, env=env,
+                capture_output=True, text=True, encoding="utf-8",
+                errors="replace", timeout=args.timeout,
+            )
+        except subprocess.TimeoutExpired as error:
+            for stream in ("stdout", "stderr"):
+                data = getattr(error, stream) or b""
+                if isinstance(data, bytes):
+                    data = data.decode("utf-8", errors="replace")
+                (out / f"{name}.{stream}.txt").write_text(data, encoding="utf-8")
+            raise RuntimeError(f"{name} exceeded {args.timeout:g} seconds") from error
         (out / f"{name}.stdout.txt").write_text(process.stdout, encoding="utf-8")
         (out / f"{name}.stderr.txt").write_text(process.stderr, encoding="utf-8")
         if refusal:

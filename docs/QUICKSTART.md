@@ -4,6 +4,9 @@ DPSpice is an Apache-2.0 Python package (Python >= 3.10) with a `dpspice` comman
 
 ## 1. Install
 
+The commands below target v1.1.1. Its tag and downloadable assets must be
+published before these commands can be used; check the [release page](https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.1.1).
+
 ### Option A: pipx (recommended)
 
 You need Python 3.10 or newer, pipx, Git, and an internet connection.

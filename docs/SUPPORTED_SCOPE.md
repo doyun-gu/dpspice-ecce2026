@@ -25,7 +25,7 @@ v1.1.1 is a packaging and documentation patch. Simulation behaviour is the same 
 
 ## Optional components (unchanged)
 
-The optional MCP integration and the notebooks are unchanged from v1.1.0. This release does not newly promote them. MCP and notebook behaviour are not part of the conference demonstration promise; consult the release verification record for what was actually checked.
+The optional MCP implementation and notebooks are unchanged from v1.1.0; the MCP dependency is now restricted to the compatible 1.x API. This release does not newly promote them. MCP and notebook behaviour are not part of the conference demonstration promise; consult the verification section of the [release notes](https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.1.1) for what was actually checked.
 
 ## Browser version
 
