@@ -11,6 +11,8 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Bound the optional MCP dependency to its compatible 1.x API. Fresh installs
   of the MCP, developer and full extras otherwise select MCP 2.x, which no
   longer provides the server import used by this release.
+- Notebook installation instructions now use a repository checkout rather than
+  a package name that is not published on PyPI.
 
 ### Added
 
