@@ -4,6 +4,35 @@ All notable changes to DPSpice are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-10-07
+
+### Fixed
+
+- Bound the optional MCP dependency to its compatible 1.x API. Fresh installs
+  of the MCP, developer and full extras otherwise select MCP 2.x, which no
+  longer provides the server import used by this release.
+- Notebook installation instructions now use a repository checkout rather than
+  a package name that is not published on PyPI.
+
+### Added
+
+- A short installation-to-result guide with version-pinned CLI commands,
+  downloaded-wheel installation and POSIX/Windows environment instructions.
+- A concise supported-scope guide separating the demonstration examples,
+  existing experimental paths and capabilities outside this release.
+- Wheel/source package checks that exercise the installed CLI from a fresh
+  working directory, waveform export, all three Table V reference rows and
+  unsupported-device refusal. A separate workflow runs these on three OSes.
+- A maintainer release checklist; workflows build artifacts without publishing.
+
+### Changed
+
+- README links directly to the quickstart, browser examples and supported scope.
+  The browser engine is identified as a separate pinned distribution.
+- Source distributions include the release guides and installed-package check.
+- Package and citation version metadata advance to 1.1.1. The solver, bundled
+  circuits and golden numerical reference fixtures are unchanged from v1.1.0.
+
 ## [1.1.0] - 2026-07-09
 
 ### Added
@@ -268,6 +297,7 @@ result out, with the solver auto-decided, announced, and overridable.
   in this release; the pure-Python backend is the shipping path. See the README
   Roadmap.
 
+[1.1.1]: https://github.com/doyun-gu/dpspice-ecce2026/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.1.0
 [1.0.5]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.5
 [1.0.4]: https://github.com/doyun-gu/dpspice-ecce2026/releases/tag/v1.0.4

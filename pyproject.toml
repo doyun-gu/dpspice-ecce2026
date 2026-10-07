@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dpspice"
-version = "1.1.0"
+version = "1.1.1"
 description = "Topology-independent dynamic-phasor circuit simulation — netlist in, result out (ECCE 2026)."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,7 +38,7 @@ cli = [
 ]
 # The `dpspice-mcp` Model Context Protocol server.
 mcp = [
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
 ]
 # Notebook / waveform plotting.
 viz = [
@@ -57,7 +57,7 @@ dev = [
     "typer>=0.12,<1.0",
     "rich>=13.7",
     "pyfiglet>=1.0",
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
     "matplotlib>=3.8",
     "pandas>=2.0",
 ]
@@ -66,7 +66,7 @@ all = [
     "typer>=0.12,<1.0",
     "rich>=13.7",
     "pyfiglet>=1.0",
-    "mcp>=1.2",
+    "mcp>=1.2,<2",
     "matplotlib>=3.8",
 ]
 

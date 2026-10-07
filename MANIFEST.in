@@ -1,0 +1,6 @@
+include LICENSE CITATION.cff CHANGELOG.md CONTRIBUTING.md
+include REPRODUCIBILITY.md PAPER_CODE_MISMATCHES.md VALIDATION_REPORT.md
+include requirements.lock
+recursive-include docs *.md *.png
+recursive-include scripts *.py
+recursive-include tests *.py *.json

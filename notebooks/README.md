@@ -1,9 +1,10 @@
 # DPSpice notebooks
 
-Five worked examples. Each runs end-to-end after only:
+Five worked examples. From the repository root, install the plotting extra
+into your virtual environment:
 
 ```bash
-pip install "dpspice[viz]"
+python -m pip install ".[viz]"
 ```
 
 `[viz]` adds matplotlib; the notebooks reach their data through bundled package
@@ -38,7 +39,7 @@ use_style, PALETTE, style_table`.
 To regenerate the outputs yourself you also need the notebook tooling:
 
 ```bash
-pip install "dpspice[viz]" jupyter nbconvert ipykernel
+python -m pip install ".[viz]" jupyter nbconvert ipykernel
 jupyter nbconvert --to notebook --execute --inplace notebooks/*.ipynb
 ```
 

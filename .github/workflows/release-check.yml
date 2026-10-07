@@ -1,0 +1,64 @@
+name: Release package checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m pip install build
+      - run: python -m build
+      - name: Write release asset checksums
+        working-directory: dist
+        run: sha256sum *.whl *.tar.gz > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: dist/*
+          if-no-files-found: error
+
+  installed-package:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        package: [wheel, sdist]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: dist
+      - name: Install built artifact with CLI extras
+        env:
+          PACKAGE_KIND: ${{ matrix.package }}
+        run: >-
+          python -c "import os,pathlib,subprocess,sys;
+          pattern='*.whl' if os.environ['PACKAGE_KIND']=='wheel' else '*.tar.gz';
+          artifact,=pathlib.Path('dist').glob(pattern);
+          subprocess.check_call([sys.executable,'-m','pip','install',str(artifact.resolve())+'[cli]'])"
+      - name: Check installed CLI outside the checkout
+        run: python scripts/release_smoke.py --expected-version 1.1.1 --out "${{ runner.temp }}/smoke-results"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-${{ matrix.os }}-${{ matrix.package }}
+          path: ${{ runner.temp }}/smoke-results
+          if-no-files-found: warn

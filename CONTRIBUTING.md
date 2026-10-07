@@ -1,5 +1,7 @@
 # Contributing to DPSpice
 
+Maintainers: [build, verify and publish a release](docs/RELEASING.md).
+
 Thanks for looking at the engine. This document covers the install layout, the
 testing contract, and the two invariants the test suite enforces.
 
