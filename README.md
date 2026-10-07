@@ -8,7 +8,14 @@
 **Topology-independent dynamic-phasor circuit simulation.** Drop in a SPICE
 netlist, and DPSpice figures out the rest: it parses the circuit, stamps the
 modified-nodal-analysis (MNA) system, picks the right solver, and runs it.
-Netlist in, result out.
+Netlist in, result out, within the [supported circuit subset](docs/SUPPORTED_SCOPE.md).
+
+**Start here:** [five-minute CLI guide](docs/QUICKSTART.md) ·
+[try examples in your browser](https://dpspice.com) ·
+[supported and experimental scope](docs/SUPPORTED_SCOPE.md).
+The browser uses a separately pinned engine and adapter; its available inputs
+and features can differ from the CLI. Initial browser dependency loading needs
+an internet connection.
 
 This is the reference implementation accompanying the ECCE 2026 paper by
 Doyun Gu and Cheng Zhang (University of Manchester). The archived release is on
@@ -28,10 +35,10 @@ manage), then run a bundled example:
 
 ```bash
 # 1. Install the `dpspice` command + its CLI dependencies
-pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git"
+pipx install "dpspice[cli] @ git+https://github.com/doyun-gu/dpspice-ecce2026.git@v1.1.1"
 
 # 2. Confirm it is on your PATH
-dpspice --version          # -> 1.1.0
+dpspice --version          # -> 1.1.1
 
 # 3. See what ships with the package ...
 dpspice examples
@@ -40,8 +47,14 @@ dpspice examples
 dpspice info rlc.sp
 
 # 5. ... then simulate it
-dpspice run rlc.sp
+dpspice run rlc.sp --out rlc-result.json
 ```
+
+This path requires Python 3.10+, pipx, Git and internet access during installation.
+For a virtual environment or a downloaded release wheel, including Windows
+instructions, see the [quickstart](docs/QUICKSTART.md). The JSON file contains
+the waveform samples and settings; successful execution is not an independent
+accuracy or control-stability verdict.
 
 For your own netlists the command name is optional — `dpspice run` is implied
 when the first argument is a netlist file, so dragging a file into the
@@ -130,7 +143,7 @@ paper text — recorded as findings, never silently patched.
 ## Notebooks
 
 Five worked examples live in [`notebooks/`](notebooks/), runnable after
-`pip install "dpspice[viz]"`: quickstart, envelope-vs-classical speedup,
+`pip install ".[viz]"` from a checkout: quickstart, envelope-vs-classical speedup,
 cross-validation against ngspice (with a bundled `.raw` fallback), the nonlinear
 harmonic-balance path, and scaling. They ship with rendered outputs; see
 [`notebooks/README.md`](notebooks/README.md) for the re-execute command.
@@ -410,7 +423,7 @@ always resolves to the latest archived version.
   author    = {Gu, Doyun and Zhang, Cheng},
   title     = {{DPSpice}: Topology-Independent Dynamic-Phasor Circuit Simulation},
   publisher = {Zenodo},
-  version   = {v1.1.0},
+  version   = {v1.1.1},
   doi       = {10.5281/zenodo.21085058},
   url       = {https://doi.org/10.5281/zenodo.21085058},
   year      = {2026}
